@@ -1,4 +1,4 @@
-// Etapas 1 y 2. Autenticación solamente mediante respuesta del backend, sin sesión ficticia.
+// Interfaz reconstruida con asistencia de IA. El servidor decide sesión, permisos y datos.
 const screens = {
   calificaciones: 'Calificaciones',
   nueva: 'Nueva calificación',
@@ -40,7 +40,76 @@ function showUser(user) {
   document.getElementById('session-label').textContent = user ? user.name : 'Sin sesión';
   logoutButton.hidden = !user;
   form.hidden = Boolean(user);
+  activeUser = user;
+  if (user) loadRecords();
+  else {
+    recordsLoader.cancel();
+    renderRecords({ status: 'signed-out', records: [] });
+  }
 }
+
+let activeUser = null;
+const filtersForm = document.getElementById('record-filters');
+const recordsLoader = NuamRecords.createLoader(api, renderRecords);
+
+function readFilters() {
+  return {
+    instrument: document.getElementById('filter-instrument').value,
+    market: document.getElementById('filter-market').value,
+    year: document.getElementById('filter-year').value,
+  };
+}
+
+function loadRecords() {
+  if (activeUser) return recordsLoader.load(readFilters());
+  renderRecords({ status: 'signed-out', records: [] });
+}
+
+function renderRecords(state) {
+  const body = document.getElementById('records-body');
+  const table = document.getElementById('records-table');
+  const status = document.getElementById('records-state');
+  body.replaceChildren();
+  table.hidden = state.status !== 'ready';
+  table.setAttribute('aria-busy', String(state.status === 'loading'));
+  document.getElementById('retry-records').hidden = state.status !== 'error';
+  document.getElementById('records-count').textContent = state.status === 'ready' ? `${state.records.length} registros encontrados` : '';
+  const messages = {
+    loading: 'Consultando calificaciones…',
+    empty: 'No se encontraron calificaciones con estos filtros.',
+    'signed-out': 'Inicia sesión para consultar tus calificaciones.',
+    ready: 'Listado actualizado.',
+    error: state.message,
+  };
+  status.textContent = messages[state.status];
+  if (state.status === 'error' && state.statusCode === 401) {
+    activeUser = null;
+    document.getElementById('session-label').textContent = 'Sin sesión';
+    logoutButton.hidden = true;
+    form.hidden = false;
+  }
+  for (const item of state.records) {
+    const row = document.createElement('tr');
+    const date = new Date(item.updatedAt).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' });
+    const values = [
+      `${item.instrument} / ${item.sequence ?? '—'}`,
+      item.year, item.market,
+      `${item.origin || 'Sin origen'} · ${item.source || 'Sin fuente'}`,
+      item.sum.replace('.', ','), date,
+    ];
+    for (const value of values) {
+      const cell = document.createElement('td');
+      cell.textContent = value;
+      row.append(cell);
+    }
+    body.append(row);
+  }
+}
+
+filtersForm.addEventListener('submit', event => { event.preventDefault(); loadRecords(); });
+document.getElementById('clear-filters').addEventListener('click', () => { filtersForm.reset(); loadRecords(); });
+document.getElementById('retry-records').addEventListener('click', loadRecords);
+document.querySelector('[data-view="calificaciones"]').addEventListener('click', loadRecords);
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();

@@ -9,6 +9,7 @@ const files = {
   '/style.css': ['style.css', 'text/css'],
   '/app.js': ['app.js', 'text/javascript'],
   '/api-client.js': ['api-client.js', 'text/javascript'],
+  '/records.js': ['records.js', 'text/javascript'],
 };
 const port = Number(process.env.PORT || 3001);
 // Proxy local hacia el módulo del backend. No duplica su lógica de autenticación.

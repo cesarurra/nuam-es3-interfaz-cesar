@@ -6,6 +6,7 @@
   <title>Nuam · Mantenedor tributario</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/api-client.js" defer></script>
+  <script src="/records.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -31,7 +32,22 @@
         </div>
         <section class="card" aria-labelledby="records-title">
           <h2 id="records-title">Mantenedor de calificaciones</h2>
-          <div class="empty-state"><span aria-hidden="true">▦</span><h3>Tu espacio de calificaciones</h3><p>El listado estará disponible cuando se conecte el servicio de datos.</p></div>
+          <form id="record-filters" class="filters">
+            <label>Instrumento<input id="filter-instrument" maxlength="40" placeholder="Buscar instrumento"></label>
+            <label>Mercado<select id="filter-market"><option value="">Todos</option><option>Chile</option><option>Perú</option><option>Colombia</option></select></label>
+            <label>Ejercicio<input id="filter-year" inputmode="numeric" maxlength="4" pattern="20[0-9]{2}" placeholder="2026"></label>
+            <button class="button primary" type="submit">Buscar</button>
+            <button id="clear-filters" class="button secondary" type="button">Limpiar</button>
+          </form>
+          <p id="records-state" class="connection-status" role="status" aria-live="polite">Inicia sesión para consultar tus calificaciones.</p>
+          <button id="retry-records" class="button secondary" type="button" hidden>Reintentar</button>
+          <div id="records-table" class="table-wrap" hidden>
+            <table><caption class="sr-only">Calificaciones devueltas por el servidor para el usuario autenticado</caption>
+              <thead><tr><th scope="col">Instrumento / secuencia</th><th scope="col">Ejercicio</th><th scope="col">Mercado</th><th scope="col">Origen / fuente</th><th scope="col">Suma 8–16</th><th scope="col">Modificación</th></tr></thead>
+              <tbody id="records-body"></tbody>
+            </table>
+          </div>
+          <p id="records-count" class="muted record-count"></p>
         </section>
       </section>
 

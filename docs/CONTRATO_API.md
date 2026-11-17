@@ -14,3 +14,9 @@ Errores: estado HTTP no exitoso y JSON `{ error: "Mensaje legible" }`. El client
 La interfaz se sirve en 127.0.0.1:3001. El servidor de desarrollo reenvía /api/* al backend local en 127.0.0.1:3000 mediante proxy. Configurar otro puerto de backend con `$env:API_ORIGIN="http://127.0.0.1:PUERTO"` antes de ejecutar npm start. Este proxy es de desarrollo local, no un despliegue de producción ni el backend de Ignacio.
 
 Sin backend, el acceso debe mostrar indisponibilidad. No marcar login/logout como integración aprobada hasta probarlos contra el módulo del equipo.
+
+## Consulta de calificaciones (etapa 3)
+
+GET `/api/records?q=INSTRUMENTO&market=Chile&year=2026`, con cookie. Parámetros opcionales: q, market (Chile/Perú/Colombia) y year (2000–2099). El servidor filtra por tenant derivado de la sesión; el navegador no envía ni decide tenantId.
+
+Respuesta: array de registros con id, instrument, sequence, year (string), market, origin, source, sum (string decimal canónico de 8 decimales) y updatedAt (fecha ISO). Array vacío es un resultado válido; 401 es sesión ausente/vencida. Una respuesta mal formada muestra error, no se interpreta como ausencia de datos.

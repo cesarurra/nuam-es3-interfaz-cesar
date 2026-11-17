@@ -21,3 +21,11 @@ Implementación asistida por ChatGPT/Codex: formulario de acceso, validaciones d
 El contrato de endpoints se documentó para acordarlo con Ignacio. No hay autenticación ficticia ni se atribuye a César desarrollo del backend. Pruebas automatizadas A01–A08 usan respuestas simuladas para validar el cliente; no acreditan integración con backend real ni revisión visual.
 
 Verificación ejecutada: sintaxis de los tres archivos JavaScript aprobada y 8 pruebas del cliente aprobadas, 0 fallidas, con Node.js el 17 de noviembre de 2026. El proxy local y las cookies en navegador siguen pendientes de prueba de integración.
+
+## 17 de noviembre de 2026 · Etapa 3
+
+Implementación asistida por ChatGPT/Codex: listado obtenido de API, filtros por instrumento/mercado/ejercicio, tabla de origen y fecha, estados de carga/vacío/error y reintento. Las respuestas antiguas se descartan al cambiar consulta o salir. La UI inserta los valores como texto, sin interpretar HTML.
+
+Las comprobaciones manuales de acceso reportadas por César se registran separadas en PRUEBAS_MANUALES_CESAR.md, distinguiendo lo visible de lo pendiente. El contrato del listado se agregó a CONTRATO_API.md; sigue pendiente acordarlo y probarlo con el backend reconstruido del equipo.
+
+Comprobación ejecutada: `npm.cmd run check` aprobada y `npm.cmd test` con 14 pruebas aprobadas, 0 fallidas (8 de acceso y 6 de listado). Usan respuestas simuladas; navegador y consulta real del listado pendientes.
