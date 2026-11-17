@@ -45,3 +45,9 @@ Implementación asistida por ChatGPT/Codex: guardado de nuevas calificaciones, a
 Se agregó cliente de operaciones con envío restringido de campos: tenantId/origin no se toman del formulario. Las pruebas del cliente CRUD usan API simulada. El resultado manual del cálculo visible se documentó por separado. El flujo CRUD real de navegador e integración con los módulos reconstruidos del equipo siguen pendientes.
 
 Verificaciones ejecutadas: sintaxis aprobada, 30 pruebas del cliente aprobadas y 0 fallos (8 acceso, 6 listado, 8 formulario, 8 operaciones). Comprobación estructural: 50 IDs HTML únicos, 42 referencias estáticas de app.js sin IDs faltantes y archivos de scripts presentes. Esto no sustituye la ejecución de eventos DOM en navegador.
+
+## 17 de noviembre de 2026 · Verificación guiada de etapa 5
+
+César ejecutó en navegador el recorrido de alta, edición de F34, intento de suma inválida, reapertura, cancelación y confirmación de eliminación. La captura de alta/listado muestra DEMO-CESAR/1 con suma 1; el resto se documentó como confirmación textual del ejecutor, sin inventar capturas ni inspección directa del backend.
+
+El detalle M04–M09 y los pendientes vigentes están en PRUEBAS_MANUALES_CESAR.md. No hubo cambios de código en este registro documental ni se repitieron las pruebas automatizadas. Sigue pendiente la integración con los módulos reconstruidos, auditoría, aislamiento, concurrencia y la revisión visual completa.

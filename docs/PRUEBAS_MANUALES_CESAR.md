@@ -25,7 +25,7 @@ La captura del formulario después de Usar montos HDU y Calcular factores muestr
 
 Se acredita el resultado visible del cálculo contra el backend del prototipo anterior. No se acredita aún el módulo reconstruido de Nibaldo ni de Ignacio, ni persistencia desde esta interfaz.
 
-## Recorrido pendiente de etapa 5
+## Plan de pruebas de etapa 5
 
 1. Crear DEMO-CESAR, ejercicio 2026, Chile, secuencia 1, fecha válida, No inscrito. Usar montos HDU, calcular y guardar. Esperado: mensaje y registro en tabla, suma 1.
 2. Buscar DEMO-CESAR; verificar filtro positivo, mercado y ejercicio; Limpiar debe devolver listado general.
@@ -37,3 +37,26 @@ Se acredita el resultado visible del cálculo contra el backend del prototipo an
 8. Repetir revisión visual en escritorio y 1024×768; comprobar teclado, foco, desplazamiento, mensajes y botones.
 
 Registrar por caso fecha, ejecutor, versión, entradas, resultado esperado/obtenido y captura. No marcar estos casos aprobados por el solo hecho de haber implementado sus botones.
+
+## Resultados de etapa 5 informados por César
+
+Fecha: 17 de noviembre de 2026. Versión: 36fc60e. Ejecutor de las acciones de navegador: César Urra; documentación asistida por ChatGPT/Codex. Se utilizó la interfaz reconstruida en 3001 y el backend del prototipo anterior en 3000.
+
+| Caso | Entrada / acción | Resultado esperado | Resultado obtenido y evidencia | Evaluación |
+| --- | --- | --- | --- | --- |
+| M04 Alta y consulta | Crear DEMO-CESAR/1 con montos HDU y guardar | Registro visible, ejercicio 2026, Chile y suma 1 | Captura muestra DEMO-CESAR/1, 2026, Chile, Corredor/Manual, suma 1,00000000 y un registro encontrado | Coincide en la captura; estado No inscrito no visible en esa evidencia |
+| M05 Edición de factor manual | Cambiar F34 a 0,12500000, guardar y reabrir | F34 conserva 0.12500000 | César confirmó por texto que el valor seguía al reabrir | Coincide según reporte del ejecutor; falta captura |
+| M06 Suma inválida | Cambiar F10 de cero a 0.00000001 sobre el ejemplo y solicitar guardar | Bloqueo porque suma 8–16 supera 1 | César transcribió: «La suma de factores 8–16 supera 1. Corrige los valores antes de guardar» | Coincide según reporte; validación del cliente, no prueba de rechazo directo de API |
+| M07 Conservación de datos guardados | Volver al listado tras el rechazo y reabrir | F10=0.00000000 y F34=0.12500000 | César confirmó ambos valores en la secuencia guiada | Coincide según reporte; falta captura |
+| M08 Cancelación de eliminación | Eliminar y después Cancelar | Registro permanece | César confirmó que cancelar conserva el registro | Coincide según reporte; falta captura |
+| M09 Eliminación confirmada | Repetir Eliminar y confirmar | Registro desaparece del listado | César confirmó la eliminación en la secuencia guiada | Coincide según reporte; falta captura y comprobación del evento de auditoría |
+
+No se reportaron diferencias respecto a lo esperado en estos seis casos. El alcance de evidencia es el indicado por fila: las confirmaciones por texto no se presentan como capturas inspeccionadas. No se inspeccionó la base ni se verificó auditoría mediante estas acciones.
+
+## Pendientes vigentes después de esta sesión
+
+- Guardar y enlazar capturas reales recortadas para M05–M09 y para el acceso incorrecto completo; la conversación no reemplaza los archivos de evidencia del repositorio.
+- Comprobar F8=0.52277431, la condición No inscrito, filtros positivos por instrumento/mercado/ejercicio y persistencia después de reiniciar.
+- Revisar auditoría de ingreso, modificación y eliminación en el backend, aislamiento con corredor B, referencia Bolsa y conflicto de versión con dos pestañas.
+- Revisar tamaño 1024×768, teclado, foco y desplazamientos, especialmente la tabla de 30 factores y las acciones a la derecha del listado.
+- Repetir integración contra los módulos reconstruidos de Ignacio y Nibaldo; las verificaciones presentes usan el backend del prototipo inicial.

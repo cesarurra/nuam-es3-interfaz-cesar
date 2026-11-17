@@ -58,7 +58,7 @@ Ver `docs/AVANCES.md`. No hay contraseñas, base de datos ni credenciales en est
 
 ## Qué falta para la entrega
 
-- Ejecutar el recorrido CRUD de etapa 5 y guardar capturas reales con resultados esperados/obtenidos.
+- El recorrido CRUD básico de etapa 5 fue ejecutado por César contra el backend del prototipo anterior; alta tiene captura y edición/validación/eliminación tienen confirmaciones textuales. Completar las capturas y verificaciones detalladas en docs/PRUEBAS_MANUALES_CESAR.md.
 - Probar filtros con datos existentes, cambios manuales de factores, conflictos y aislamiento entre usuarios.
 - Probar el contrato contra los módulos reconstruidos de Ignacio y Nibaldo. Las capturas recibidas hasta etapa 4 usaron el backend del prototipo inicial; no acreditan el trabajo reconstruido del equipo.
 - Completar revisión responsive, teclado/foco y documentación de pruebas.
