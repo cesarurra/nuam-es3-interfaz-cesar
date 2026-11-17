@@ -43,6 +43,7 @@ function showUser(user) {
   activeUser = user;
   if (user) loadRecords();
   else {
+    factorEditor.reset();
     recordsLoader.cancel();
     renderRecords({ status: 'signed-out', records: [] });
   }
@@ -143,6 +144,8 @@ logoutButton.addEventListener('click', async () => {
     showMessage(error.message);
   } finally { logoutButton.disabled = false; }
 });
+
+const factorEditor = NuamFactorForm.mount({ api, getUser: () => activeUser });
 
 (async function restoreSession() {
   const status = document.getElementById('connection-status');

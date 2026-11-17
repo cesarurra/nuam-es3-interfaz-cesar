@@ -1,8 +1,8 @@
 {
   "name": "nuam-es3-interfaz-cesar",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Reconstrucción del módulo de interfaz Nuam, TIHI43, con asistencia de IA declarada",
-  "scripts": { "start": "node server.js", "check": "node --check server.js && node --check public/app.js && node --check public/api-client.js && node --check public/records.js", "test": "node --test tests/*.test.js" },
+  "scripts": { "start": "node server.js", "check": "node --check server.js && node --check public/app.js && node --check public/api-client.js && node --check public/records.js && node --check public/factor-form.js", "test": "node --test tests/*.test.js" },
   "engines": { "node": ">=22" }
 }

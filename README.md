@@ -10,9 +10,9 @@ Reconstrucción del módulo de interfaz del caso Nuam, Proyecto Integrado TIHI43
 
 Este repositorio nace después de que el docente solicitara reconstruir los módulos con evidencia de desarrollo. No reescribe el historial del proyecto inicial ni presenta el ZIP anterior como desarrollo individual. El desarrollo de este repositorio usa asistencia de ChatGPT/Codex; César debe revisar, probar y comprender cada avance. Confirmar con el docente las condiciones de uso de IA para ES3.
 
-## Etapas implementadas: 1, 2 y 3
+## Etapas implementadas: 1 a 4
 
-Incluye disposición visual, estilos comunes, navegación, formulario de acceso y cliente de API con restauración/cierre de sesión, listado y filtros conectados a API. La autenticación y consulta requieren el backend, no hay credenciales ni datos simulados en la aplicación. Nueva calificación todavía es un espacio reservado; no hay cálculo ni escrituras CRUD.
+Incluye disposición visual, navegación, acceso y cliente de API, listado/filtros y formulario de montos/factores 8–37 con cálculo recibido del servidor. La autenticación, consulta y cálculo requieren backend; no se simulan sesiones ni resultados en la aplicación. Se incluye un botón para cargar montos de ejemplo del HDU, identificado como tal. El formulario permite calcular/revisar pero todavía no guardar ni editar/eliminar registros.
 
 `server.js` sirve la interfaz y reenvía `/api/*` al backend local en puerto 3000. No reconstruye las operaciones del backend. Ver `docs/CONTRATO_API.md`; sin backend el formulario muestra un error de disponibilidad.
 
@@ -40,7 +40,6 @@ Ejecuta pruebas del cliente con respuestas simuladas: validación, errores, sesi
 
 ## Etapas siguientes
 
-4. Formulario de identificación, montos y factores con cálculo en API.
 5. Edición, eliminación y manejo de validaciones del servidor.
 
 Cada commit debe describir el avance efectivamente implementado. Cada etapa tendrá sus verificaciones y límites documentados, sin atribuir pruebas aún no realizadas.

@@ -20,3 +20,11 @@ Sin backend, el acceso debe mostrar indisponibilidad. No marcar login/logout com
 GET `/api/records?q=INSTRUMENTO&market=Chile&year=2026`, con cookie. Parámetros opcionales: q, market (Chile/Perú/Colombia) y year (2000–2099). El servidor filtra por tenant derivado de la sesión; el navegador no envía ni decide tenantId.
 
 Respuesta: array de registros con id, instrument, sequence, year (string), market, origin, source, sum (string decimal canónico de 8 decimales) y updatedAt (fecha ISO). Array vacío es un resultado válido; 401 es sesión ausente/vencida. Una respuesta mal formada muestra error, no se interpreta como ausencia de datos.
+
+## Cálculo (etapa 4)
+
+POST `/api/calculate`, cookie y X-CSRF-Token. JSON `{ amounts: { "8": "192770580.00000000", ..., "37": "0.00000000" } }`. El cliente transmite strings decimales canónicos, no números Float.
+
+Respuesta propuesta: `{ total: "368745318.00000000", factors: { "8": "0.52277431", ..., "33": "0.00000000" }, warnings: [] }`. Se requieren factores 8–33; los manuales 34–37 que el usuario ingresó no se sobrescriben. El backend define fórmula, redondeo y validación final. La UI suma 8–16 con BigInt únicamente para informar al usuario.
+
+En etapa 4 se calcula y revisa el borrador; no se implementa todavía persistencia por POST /records ni edición/eliminación. Eso pertenece a etapa 5 y al backend de Ignacio.

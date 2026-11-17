@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/style.css">
   <script src="/api-client.js" defer></script>
   <script src="/records.js" defer></script>
+  <script src="/factor-form.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -53,7 +54,35 @@
 
       <section id="view-nueva" data-panel="nueva" aria-labelledby="title-nueva" hidden>
         <p class="eyebrow">INGRESO DE INFORMACIÓN</p><h1 id="title-nueva">Nueva calificación</h1>
-        <section class="card"><h2>Montos y factores</h2><p class="muted">En esta pantalla se incorporará el formulario de identificación y montos.</p><a class="button secondary" href="#calificaciones">Volver al mantenedor</a></section>
+        <form id="qualification-form">
+          <section class="card form-section">
+            <h2>1. Identificación del registro</h2>
+            <div class="identification-grid">
+              <label>Instrumento<input id="qualification-instrument" required maxlength="40" placeholder="DEMO-CESAR"></label>
+              <label>Ejercicio<input id="qualification-year" required inputmode="numeric" maxlength="4" pattern="20[0-9]{2}" value="2026"></label>
+              <label>Mercado<select id="qualification-market"><option>Chile</option><option>Perú</option><option>Colombia</option></select></label>
+              <label>Secuencia<input id="qualification-sequence" required inputmode="numeric" maxlength="6" value="1"></label>
+              <label>Fecha de pago<input id="qualification-date" required type="date"></label>
+              <label>Instrumento inscrito<select id="qualification-registered"><option value="true">Sí</option><option value="false">No inscrito</option></select></label>
+            </div>
+          </section>
+          <section class="card form-section">
+            <div class="factor-heading"><h2>2. Montos y factores</h2><div class="factor-actions"><button id="fill-example" class="button secondary" type="button">Usar montos HDU</button><button id="calculate-factors" class="button primary" type="button">Calcular factores</button></div></div>
+            <p class="muted form-help">Sin separadores de miles, hasta ocho decimales. Puedes usar coma o punto decimal.</p>
+            <p class="connection-status">Factores 8–33: monto ÷ total de montos 8–19. Factores 34–37: ingreso manual, sin fórmula definida en el HDU.</p>
+            <div class="table-wrap factor-table-wrap"><table>
+              <caption class="sr-only">Treinta columnas de montos y factores, del 8 al 37</caption>
+              <thead><tr><th scope="col">Columna</th><th scope="col">Monto</th><th scope="col">Factor</th><th scope="col">Tratamiento</th></tr></thead>
+              <tbody id="factor-inputs"></tbody>
+            </table></div>
+            <div class="factor-summary" aria-live="polite">
+              <div><span>Total montos 8–19</span><strong id="calculated-total">Sin calcular</strong></div>
+              <div><span>Suma factores 8–16</span><strong id="calculated-sum">0,00000000</strong></div>
+            </div>
+            <p id="factor-message" class="connection-status" role="status">Ingresa los montos y solicita el cálculo al servidor.</p>
+          </section>
+          <div class="factor-actions"><a class="button secondary" href="#calificaciones">Volver al listado</a><button id="reset-qualification" class="button secondary" type="button">Limpiar formulario</button></div>
+        </form>
       </section>
 
       <section id="view-acceso" data-panel="acceso" aria-labelledby="title-acceso" hidden>

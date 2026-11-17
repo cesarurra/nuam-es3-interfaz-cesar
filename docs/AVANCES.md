@@ -29,3 +29,11 @@ Implementación asistida por ChatGPT/Codex: listado obtenido de API, filtros por
 Las comprobaciones manuales de acceso reportadas por César se registran separadas en PRUEBAS_MANUALES_CESAR.md, distinguiendo lo visible de lo pendiente. El contrato del listado se agregó a CONTRATO_API.md; sigue pendiente acordarlo y probarlo con el backend reconstruido del equipo.
 
 Comprobación ejecutada: `npm.cmd run check` aprobada y `npm.cmd test` con 14 pruebas aprobadas, 0 fallidas (8 de acceso y 6 de listado). Usan respuestas simuladas; navegador y consulta real del listado pendientes.
+
+## 17 de noviembre de 2026 · Etapa 4
+
+Implementación asistida por ChatGPT/Codex: identificación y 30 pares monto/factor, normalización decimal sin Float, ejemplo HDU, solicitud de cálculo al backend y presentación de resultados. Los factores manuales 34–37 se conservan; la UI muestra suma exacta 8–16 y permite revisar factores. Cambios durante una consulta impiden sobrescribir valores con una respuesta obsoleta.
+
+Se documentaron las nuevas capturas de filtros sin afirmar pruebas con registros existentes. El formulario no guarda todavía: persistencia y edición/eliminación quedan para etapa 5. Revisión de navegador del formulario e integración con el módulo reconstruido siguen pendientes.
+
+Verificación ejecutada: `npm.cmd run check` y `npm.cmd test` aprobadas el 17 de noviembre de 2026, con 22 pruebas y 0 fallos (8 acceso, 6 listado, 8 utilidades del formulario). Estas pruebas no acreditan el montaje DOM ni el cálculo por red en navegador.
