@@ -11,6 +11,7 @@ const files = {
   '/api-client.js': ['api-client.js', 'text/javascript'],
   '/records.js': ['records.js', 'text/javascript'],
   '/factor-form.js': ['factor-form.js', 'text/javascript'],
+  '/operations.js': ['operations.js', 'text/javascript'],
 };
 const port = Number(process.env.PORT || 3001);
 // Proxy local hacia el módulo del backend. No duplica su lógica de autenticación.

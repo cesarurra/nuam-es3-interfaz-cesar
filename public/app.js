@@ -37,6 +37,7 @@ function showMessage(text, success = false) {
 }
 
 function showUser(user) {
+  if (activeUser?.id !== user?.id) factorEditor.reset();
   document.getElementById('session-label').textContent = user ? user.name : 'Sin sesión';
   logoutButton.hidden = !user;
   form.hidden = Boolean(user);
@@ -50,6 +51,11 @@ function showUser(user) {
 }
 
 let activeUser = null;
+let editingRecord = null;
+let pendingDelete = null;
+let writeBusy = false;
+let editorRequest = 0;
+const operations = NuamOperations.createOperations(api, () => activeUser);
 const filtersForm = document.getElementById('record-filters');
 const recordsLoader = NuamRecords.createLoader(api, renderRecords);
 
@@ -88,6 +94,8 @@ function renderRecords(state) {
     document.getElementById('session-label').textContent = 'Sin sesión';
     logoutButton.hidden = true;
     form.hidden = false;
+    editingRecord = null;
+    factorEditor.reset();
   }
   for (const item of state.records) {
     const row = document.createElement('tr');
@@ -103,6 +111,18 @@ function renderRecords(state) {
       cell.textContent = value;
       row.append(cell);
     }
+    const actions = document.createElement('td');
+    const edit = document.createElement('button');
+    edit.type = 'button'; edit.className = 'button secondary table-action';
+    edit.textContent = NuamOperations.canEdit(activeUser, item) ? 'Editar' : 'Usar referencia';
+    edit.addEventListener('click', () => openRecord(item.id));
+    if (activeUser?.role === 'broker') actions.append(edit);
+    if (NuamOperations.canEdit(activeUser, item)) {
+      const remove = document.createElement('button');
+      remove.type = 'button'; remove.className = 'button secondary table-action'; remove.textContent = 'Eliminar';
+      remove.addEventListener('click', () => requestDelete(item)); actions.append(remove);
+    }
+    row.append(actions);
     body.append(row);
   }
 }
@@ -132,6 +152,7 @@ form.addEventListener('submit', async (event) => {
 });
 
 logoutButton.addEventListener('click', async () => {
+  if (writeBusy) return;
   logoutButton.disabled = true;
   try {
     await api.logout();
@@ -145,7 +166,99 @@ logoutButton.addEventListener('click', async () => {
   } finally { logoutButton.disabled = false; }
 });
 
-const factorEditor = NuamFactorForm.mount({ api, getUser: () => activeUser });
+function announce(text) {
+  const node = document.getElementById('workspace-message');
+  node.textContent = text; node.hidden = false;
+}
+
+function resetEditorTitle() {
+  editorRequest++;
+  editingRecord = null;
+  document.getElementById('title-nueva').textContent = 'Nueva calificación';
+  document.getElementById('save-qualification').textContent = 'Guardar calificación';
+}
+
+const factorEditor = NuamFactorForm.mount({ api, getUser: () => activeUser, onSubmit: saveQualification, onReset: resetEditorTitle });
+
+for (const link of document.querySelectorAll('#new-qualification, [data-view="nueva"]')) {
+  link.addEventListener('click', event => {
+    if (writeBusy) { event.preventDefault(); return; }
+    factorEditor.reset();
+  });
+}
+
+async function openRecord(id) {
+  if (writeBusy) return;
+  const userId = activeUser?.id;
+  const requestId = ++editorRequest;
+  try {
+    const record = await operations.get(id);
+    if (userId !== activeUser?.id || requestId !== editorRequest || writeBusy) return;
+    factorEditor.load(record);
+    editingRecord = NuamOperations.canEdit(activeUser, record) ? record : null;
+    document.getElementById('title-nueva').textContent = editingRecord ? 'Editar calificación' : 'Crear versión local de Bolsa';
+    document.getElementById('save-qualification').textContent = editingRecord ? 'Guardar cambios' : 'Guardar versión local';
+    window.location.hash = 'nueva';
+    document.getElementById('qualification-instrument').focus();
+  } catch (error) { announce(error.message); }
+}
+
+async function saveQualification() {
+  if (writeBusy) return;
+  const button = document.getElementById('save-qualification');
+  let controls = [];
+  try {
+    const draft = factorEditor.getDraft();
+    writeBusy = true;
+    controls = [...document.querySelectorAll('#qualification-form input, #qualification-form select, #qualification-form button')].map(node => [node, node.disabled]);
+    for (const [node] of controls) node.disabled = true;
+    logoutButton.disabled = true; button.textContent = 'Guardando…';
+    const saved = await operations.save(draft, editingRecord);
+    factorEditor.reset();
+    document.getElementById('record-filters').reset();
+    announce(`Calificación ${saved.instrument || draft.instrument} guardada. Verifica el registro en el listado.`);
+    window.location.hash = 'calificaciones';
+    await loadRecords();
+  } catch (error) {
+    factorEditor.setMessage(error.status === 409 ? `${error.message} El borrador se conserva; vuelve al listado para revisar la versión vigente.` : error.message);
+  } finally {
+    for (const [node, wasDisabled] of controls) node.disabled = wasDisabled;
+    logoutButton.disabled = false; writeBusy = false;
+    button.textContent = editingRecord ? 'Guardar cambios' : 'Guardar calificación';
+  }
+}
+
+function requestDelete(record) {
+  if (writeBusy) return;
+  pendingDelete = record;
+  document.getElementById('delete-description').textContent = `Se eliminará ${record.instrument}, ejercicio ${record.year}, secuencia ${record.sequence}.`;
+  document.getElementById('delete-message').hidden = true;
+  document.getElementById('delete-dialog').showModal();
+}
+
+document.getElementById('cancel-delete').addEventListener('click', () => {
+  if (!writeBusy) { pendingDelete = null; document.getElementById('delete-dialog').close(); }
+});
+document.getElementById('delete-dialog').addEventListener('cancel', event => { if (writeBusy) event.preventDefault(); });
+document.getElementById('confirm-delete').addEventListener('click', async () => {
+  if (writeBusy || !pendingDelete) return;
+  writeBusy = true;
+  const target = pendingDelete;
+  const button = document.getElementById('confirm-delete');
+  button.disabled = true; document.getElementById('cancel-delete').disabled = true; logoutButton.disabled = true;
+  try {
+    await operations.remove(target);
+    pendingDelete = null; document.getElementById('delete-dialog').close();
+    if (editingRecord?.id === target.id) factorEditor.reset();
+    announce(`Se eliminó ${target.instrument}.`);
+    await loadRecords();
+  } catch (error) {
+    const node = document.getElementById('delete-message'); node.textContent = error.message; node.hidden = false;
+  } finally {
+    writeBusy = false; button.disabled = false;
+    document.getElementById('cancel-delete').disabled = false; logoutButton.disabled = false;
+  }
+});
 
 (async function restoreSession() {
   const status = document.getElementById('connection-status');

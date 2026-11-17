@@ -37,3 +37,11 @@ Implementación asistida por ChatGPT/Codex: identificación y 30 pares monto/fac
 Se documentaron las nuevas capturas de filtros sin afirmar pruebas con registros existentes. El formulario no guarda todavía: persistencia y edición/eliminación quedan para etapa 5. Revisión de navegador del formulario e integración con el módulo reconstruido siguen pendientes.
 
 Verificación ejecutada: `npm.cmd run check` y `npm.cmd test` aprobadas el 17 de noviembre de 2026, con 22 pruebas y 0 fallos (8 acceso, 6 listado, 8 utilidades del formulario). Estas pruebas no acreditan el montaje DOM ni el cálculo por red en navegador.
+
+## 17 de noviembre de 2026 · Etapa 5
+
+Implementación asistida por ChatGPT/Codex: guardado de nuevas calificaciones, apertura/edición con versión, creación local a partir de referencia Bolsa y eliminación con confirmación. Validación decimal previa, total positivo y suma ≤1, conservación de borrador ante errores/409, bloqueo de envíos duplicados y solicitudes de edición obsoletas. El backend sigue a cargo de permisos, persistencia y auditoría.
+
+Se agregó cliente de operaciones con envío restringido de campos: tenantId/origin no se toman del formulario. Las pruebas del cliente CRUD usan API simulada. El resultado manual del cálculo visible se documentó por separado. El flujo CRUD real de navegador e integración con los módulos reconstruidos del equipo siguen pendientes.
+
+Verificaciones ejecutadas: sintaxis aprobada, 30 pruebas del cliente aprobadas y 0 fallos (8 acceso, 6 listado, 8 formulario, 8 operaciones). Comprobación estructural: 50 IDs HTML únicos, 42 referencias estáticas de app.js sin IDs faltantes y archivos de scripts presentes. Esto no sustituye la ejecución de eventos DOM en navegador.

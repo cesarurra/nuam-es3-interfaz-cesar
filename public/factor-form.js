@@ -56,12 +56,25 @@
     });
   }
 
-  function mount({ api, getUser, document = root.document }) {
+  function validateDraft(draft) {
+    const metadata = validateMetadata(draft);
+    const amounts = normalizeVector(draft.amounts, 'Monto');
+    const factors = normalizeVector(draft.factors, 'Factor', true);
+    let total = 0n;
+    for (let i = 8; i <= 19; i++) total += BigInt(amounts[i].replace('.', ''));
+    if (total === 0n) throw new Error('El total de montos 8–19 debe ser mayor que cero.');
+    if (sumFactors(factors).exceeds) throw new Error('La suma de factores 8–16 supera 1. Corrige los valores antes de guardar.');
+    return { instrument: metadata.instrument, year: metadata.year, market: metadata.market, sequence: metadata.sequence, paymentDate: metadata.paymentDate, registered: metadata.registered, amounts, factors };
+  }
+
+  function mount({ api, getUser, onSubmit, onReset, document = root.document }) {
     const element = id => document.getElementById(id);
     const form = element('qualification-form');
     const message = element('factor-message');
     const calculateButton = element('calculate-factors');
     let revision = 0;
+    let amountsChanged = false;
+    let calculating = false;
     for (const i of columns) {
       const row = document.createElement('tr');
       const heading = document.createElement('th');
@@ -75,7 +88,7 @@
         input.addEventListener('input', () => {
           revision++;
           if (kind === 'factor') updateSum();
-          else { element('calculated-total').textContent = 'Pendiente de recalcular'; message.textContent = 'Cambiaste montos. Solicita el cálculo nuevamente.'; }
+          else { amountsChanged = true; element('calculated-total').textContent = 'Pendiente de recalcular'; message.textContent = 'Cambiaste montos. Solicita el cálculo nuevamente.'; }
         });
         cell.append(input); row.append(cell);
       }
@@ -96,6 +109,8 @@
     }
 
     async function calculate() {
+      calculating = true;
+      element('save-qualification').disabled = true;
       calculateButton.disabled = true; calculateButton.textContent = 'Calculando…';
       try {
         if (!getUser()) throw new Error('Inicia sesión antes de solicitar el cálculo.');
@@ -106,34 +121,53 @@
         for (let i = 8; i <= 33; i++) element(`factor-${i}`).value = result.factors[i];
         // Los manuales 34–37 se conservan, no se reemplazan por ceros del servidor.
         element('calculated-total').textContent = result.total.replace('.', ',');
+        amountsChanged = false;
         message.textContent = result.warnings.join(' ') || 'Cálculo recibido. Revisa los factores; aún no se ha guardado ningún registro.';
         updateSum();
       } catch (error) { message.textContent = error.message; }
-      finally { calculateButton.disabled = false; calculateButton.textContent = 'Calcular factores'; }
+      finally { calculating = false; calculateButton.disabled = false; element('save-qualification').disabled = false; calculateButton.textContent = 'Calcular factores'; }
     }
 
     function reset() {
       revision++; form.reset();
+      amountsChanged = false;
       const today = new Date();
       element('qualification-date').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
       element('calculated-total').textContent = 'Sin calcular';
       element('calculated-sum').textContent = '0,00000000';
       message.textContent = 'Ingresa los montos y solicita el cálculo al servidor.';
+      if (onReset) onReset();
     }
 
     element('fill-example').addEventListener('click', () => {
       revision++;
+      amountsChanged = true;
       for (const [i, amount] of Object.entries(exampleAmounts())) element(`amount-${i}`).value = amount;
       element('calculated-total').textContent = 'Pendiente de calcular';
       message.textContent = 'Ejemplo del HDU cargado. Presiona Calcular factores.';
     });
     calculateButton.addEventListener('click', calculate);
     element('reset-qualification').addEventListener('click', reset);
-    form.addEventListener('submit', event => { event.preventDefault(); calculate(); });
+    form.addEventListener('submit', event => { event.preventDefault(); if (onSubmit) onSubmit(); else calculate(); });
     reset();
     return {
       reset,
+      setMessage(text) { message.textContent = text; },
+      load(record) {
+        const draft = validateDraft(record);
+        revision++;
+        for (const field of ['instrument', 'year', 'market', 'sequence']) element(`qualification-${field}`).value = draft[field];
+        element('qualification-date').value = draft.paymentDate;
+        element('qualification-registered').value = String(draft.registered);
+        for (const i of columns) { element(`amount-${i}`).value = draft.amounts[i]; element(`factor-${i}`).value = draft.factors[i]; }
+        amountsChanged = false;
+        element('calculated-total').textContent = typeof record.total === 'string' ? record.total.replace('.', ',') : 'Consultar cálculo';
+        updateSum();
+        message.textContent = 'Registro cargado. Puedes revisar los valores antes de guardar.';
+      },
       getDraft() {
+        if (calculating) throw new Error('Espera a que termine el cálculo.');
+        if (amountsChanged) throw new Error('Los montos cambiaron. Calcula nuevamente antes de guardar.');
         const metadata = validateMetadata({
           instrument: element('qualification-instrument').value,
           year: element('qualification-year').value,
@@ -142,12 +176,12 @@
           paymentDate: element('qualification-date').value,
           registered: element('qualification-registered').value === 'true',
         });
-        return { ...metadata, amounts: normalizeVector(read('amount'), 'Monto'), factors: normalizeVector(read('factor'), 'Factor', true) };
+        return validateDraft({ ...metadata, amounts: read('amount'), factors: read('factor') });
       },
     };
   }
 
-  const exported = { columns, normalizeDecimal, normalizeVector, sumFactors, validateMetadata, validateCalculation, exampleAmounts, mount };
+  const exported = { columns, normalizeDecimal, normalizeVector, sumFactors, validateMetadata, validateCalculation, validateDraft, exampleAmounts, mount };
   if (typeof module !== 'undefined' && module.exports) module.exports = exported;
   else root.NuamFactorForm = exported;
 })(globalThis);

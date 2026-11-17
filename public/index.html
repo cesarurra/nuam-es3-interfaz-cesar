@@ -8,6 +8,7 @@
   <script src="/api-client.js" defer></script>
   <script src="/records.js" defer></script>
   <script src="/factor-form.js" defer></script>
+  <script src="/operations.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -26,10 +27,11 @@
   <div class="workspace">
     <header class="topbar"><span>Operaciones / <strong id="breadcrumb">Calificaciones</strong></span><div class="session-area"><span id="session-label" class="badge">Sin sesión</span><button id="logout" class="button secondary" hidden>Salir</button></div></header>
     <main id="main-content" tabindex="-1">
+      <p id="workspace-message" class="connection-status" role="status" aria-live="polite" hidden></p>
       <section id="view-calificaciones" data-panel="calificaciones" aria-labelledby="title-calificaciones">
         <div class="page-heading">
           <div><p class="eyebrow">TU INFORMACIÓN, BAJO CONTROL</p><h1 id="title-calificaciones">Calificaciones tributarias</h1><p class="muted">Consulta y organiza las calificaciones de tu corredora.</p></div>
-          <a href="#nueva" class="button primary">＋ Nueva calificación</a>
+          <a href="#nueva" id="new-qualification" class="button primary">＋ Nueva calificación</a>
         </div>
         <section class="card" aria-labelledby="records-title">
           <h2 id="records-title">Mantenedor de calificaciones</h2>
@@ -44,7 +46,7 @@
           <button id="retry-records" class="button secondary" type="button" hidden>Reintentar</button>
           <div id="records-table" class="table-wrap" hidden>
             <table><caption class="sr-only">Calificaciones devueltas por el servidor para el usuario autenticado</caption>
-              <thead><tr><th scope="col">Instrumento / secuencia</th><th scope="col">Ejercicio</th><th scope="col">Mercado</th><th scope="col">Origen / fuente</th><th scope="col">Suma 8–16</th><th scope="col">Modificación</th></tr></thead>
+              <thead><tr><th scope="col">Instrumento / secuencia</th><th scope="col">Ejercicio</th><th scope="col">Mercado</th><th scope="col">Origen / fuente</th><th scope="col">Suma 8–16</th><th scope="col">Modificación</th><th scope="col">Acciones</th></tr></thead>
               <tbody id="records-body"></tbody>
             </table>
           </div>
@@ -81,7 +83,7 @@
             </div>
             <p id="factor-message" class="connection-status" role="status">Ingresa los montos y solicita el cálculo al servidor.</p>
           </section>
-          <div class="factor-actions"><a class="button secondary" href="#calificaciones">Volver al listado</a><button id="reset-qualification" class="button secondary" type="button">Limpiar formulario</button></div>
+          <div class="factor-actions"><a class="button secondary" href="#calificaciones">Volver al listado</a><button id="reset-qualification" class="button secondary" type="button">Limpiar formulario</button><button id="save-qualification" class="button primary" type="submit">Guardar calificación</button></div>
         </form>
       </section>
 
@@ -104,5 +106,12 @@
     </main>
     <footer>Nuam · Calificaciones tributarias <span>Prototipo académico</span></footer>
   </div>
+  <dialog id="delete-dialog" aria-labelledby="delete-title">
+    <h2 id="delete-title">Eliminar calificación</h2>
+    <p id="delete-description"></p>
+    <p class="muted">El servidor conservará el evento de eliminación en la auditoría.</p>
+    <p id="delete-message" class="form-message" role="alert" hidden></p>
+    <div class="factor-actions"><button id="cancel-delete" class="button secondary" type="button">Cancelar</button><button id="confirm-delete" class="button danger" type="button">Eliminar registro</button></div>
+  </dialog>
 </body>
 </html>
