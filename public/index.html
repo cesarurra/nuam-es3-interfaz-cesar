@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuam · Mantenedor tributario</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Saltar al contenido</a>
+  <aside class="sidebar">
+    <a class="brand" href="#calificaciones" aria-label="Nuam, inicio">nuam<span>●</span></a>
+    <p class="nav-label">ESPACIO DE TRABAJO</p>
+    <nav aria-label="Navegación principal">
+      <a href="#calificaciones" data-view="calificaciones">Calificaciones</a>
+      <a href="#nueva" data-view="nueva">Nueva calificación</a>
+      <a href="#acceso" data-view="acceso">Acceso</a>
+    </nav>
+    <p class="sidebar-note">Proyecto académico<br>TIHI43 · Grupo 2</p>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar"><span>Operaciones / <strong id="breadcrumb">Calificaciones</strong></span><span class="badge">Módulo de interfaz</span></header>
+    <main id="main-content" tabindex="-1">
+      <section id="view-calificaciones" data-panel="calificaciones" aria-labelledby="title-calificaciones">
+        <div class="page-heading">
+          <div><p class="eyebrow">TU INFORMACIÓN, BAJO CONTROL</p><h1 id="title-calificaciones">Calificaciones tributarias</h1><p class="muted">Consulta y organiza las calificaciones de tu corredora.</p></div>
+          <a href="#nueva" class="button primary">＋ Nueva calificación</a>
+        </div>
+        <section class="card" aria-labelledby="records-title">
+          <h2 id="records-title">Mantenedor de calificaciones</h2>
+          <div class="empty-state"><span aria-hidden="true">▦</span><h3>Tu espacio de calificaciones</h3><p>El listado estará disponible cuando se conecte el servicio de datos.</p></div>
+        </section>
+      </section>
+
+      <section id="view-nueva" data-panel="nueva" aria-labelledby="title-nueva" hidden>
+        <p class="eyebrow">INGRESO DE INFORMACIÓN</p><h1 id="title-nueva">Nueva calificación</h1>
+        <section class="card"><h2>Montos y factores</h2><p class="muted">En esta pantalla se incorporará el formulario de identificación y montos.</p><a class="button secondary" href="#calificaciones">Volver al mantenedor</a></section>
+      </section>
+
+      <section id="view-acceso" data-panel="acceso" aria-labelledby="title-acceso" hidden>
+        <p class="eyebrow">ACCESO AL MANTENEDOR</p><h1 id="title-acceso">Iniciar sesión</h1>
+        <section class="card"><h2>Tu cuenta de corredor</h2><p class="muted">El formulario de acceso y su conexión con el servidor se incorporarán en el siguiente avance.</p></section>
+      </section>
+    </main>
+    <footer>Nuam · Calificaciones tributarias <span>Prototipo académico</span></footer>
+  </div>
+</body>
+</html>
