@@ -3,6 +3,7 @@
  * Responsable: Nibaldo Zepeda
  * Etapa N1: Definición de estructura, rangos de factores y llave de negocio.
  * Etapa N2: Representación decimal exacta (BigInt escalado 10^8) y validaciones.
+ * Etapa N3: Motor de cálculo financiero y validación de regla suma <= 1.0.
  */
 
 // Rango completo de columnas tributarias según estándar DJ1948 / NUAM (30 claves)
@@ -25,7 +26,6 @@ class DomainError extends Error {
 
 /**
  * Convierte un valor numérico o texto en BigInt escalado por 10^8.
- * Rechaza negativos, notación exponencial (ej. 1e-5) y exceso de 8 decimales.
  */
 function parseDecimal(raw, fieldName = 'valor') {
   if (raw === null || raw === undefined || String(raw).trim() === '') {
@@ -34,7 +34,6 @@ function parseDecimal(raw, fieldName = 'valor') {
 
   const str = String(raw).trim().replace(',', '.');
 
-  // Validar estrictamente formato decimal no negativo con máximo 8 decimales (sin notación científica)
   if (!/^\d+(\.\d{1,8})?$/.test(str)) {
     throw new DomainError(
       `Formato decimal inválido en ${fieldName}: "${raw}". Debe ser no negativo con máximo 8 decimales.`,
@@ -49,7 +48,6 @@ function parseDecimal(raw, fieldName = 'valor') {
 
 /**
  * Formatea un BigInt escalado a su representación canónica de texto con 8 decimales.
- * Ejemplo: 12345678n -> "0.12345678"
  */
 function formatDecimal(scaledBigInt) {
   if (typeof scaledBigInt !== 'bigint' || scaledBigInt < 0n) {
@@ -61,7 +59,7 @@ function formatDecimal(scaledBigInt) {
 }
 
 /**
- * Valida que un factor individual (incluidos los manuales 34-37) esté entre 0 y 1 inclusive.
+ * Valida que un factor individual esté entre 0 y 1 inclusive.
  */
 function validateSingleFactor(raw, keyName) {
   const scaled = parseDecimal(raw, `Factor ${keyName}`);
@@ -75,8 +73,77 @@ function validateSingleFactor(raw, keyName) {
 }
 
 /**
+ * Motor de Cálculo Principal (Etapa N3)
+ * Recibe un objeto de montos { '8': '192770580', ... }
+ * Retorna { total, factors, sum, warnings }
+ */
+function calculate(amountsObj, existingManualFactors = {}) {
+  if (!amountsObj || typeof amountsObj !== 'object') {
+    throw new DomainError('Se requiere un objeto de montos válidos para el cálculo.', 400);
+  }
+
+  // 1. Parsear los 30 montos 8-37
+  const amounts = {};
+  for (const k of FACTOR_KEYS) {
+    amounts[k] = parseDecimal(amountsObj[k], `Monto ${k}`);
+  }
+
+  // 2. Sumar montos 8-19 para obtener el denominador (total)
+  let totalScaled = 0n;
+  for (const k of DENOMINATOR_KEYS) {
+    totalScaled += amounts[k];
+  }
+
+  if (totalScaled <= 0n) {
+    throw new DomainError('El total de los montos (columnas 8 a 19) no puede ser cero para realizar el cálculo.', 400);
+  }
+
+  const factors = {};
+  const warnings = [];
+
+  // 3. Calcular factores 8-33 (monto / total con redondeo mitad hacia arriba a 8 decimales)
+  for (let i = 8; i <= 33; i++) {
+    const keyStr = String(i);
+    const m = amounts[keyStr];
+    // División con redondeo half-up: (m * SCALE_FACTOR * 2n / totalScaled + 1n) / 2n
+    const numerator = m * SCALE_FACTOR * 2n;
+    const quotient = numerator / totalScaled;
+    const rounded = (quotient + 1n) / 2n;
+    factors[keyStr] = formatDecimal(rounded);
+  }
+
+  // 4. Tratar factores 34-37 como manuales
+  for (const k of MANUAL_FACTOR_KEYS) {
+    if (existingManualFactors[k] !== undefined) {
+      const validated = validateSingleFactor(existingManualFactors[k], k);
+      factors[k] = formatDecimal(validated);
+    } else {
+      factors[k] = '0.00000000';
+    }
+  }
+
+  // 5. Sumar factores 8-16 para validar la regla de negocio (<= 1.0)
+  let sumRuleScaled = 0n;
+  for (const k of SUM_RULE_KEYS) {
+    sumRuleScaled += parseDecimal(factors[k], `Factor calculado ${k}`);
+  }
+
+  const sumFormatted = formatDecimal(sumRuleScaled);
+
+  if (sumRuleScaled > SCALE_FACTOR) {
+    warnings.push(`Advertencia: La suma de los factores 8 a 16 es ${sumFormatted}, lo cual excede el límite permitido de 1.00000000.`);
+  }
+
+  return {
+    total: formatDecimal(totalScaled),
+    sum: sumFormatted,
+    factors,
+    warnings
+  };
+}
+
+/**
  * Genera la llave de negocio única para aislamiento Multi-tenant.
- * Formato: tenantId|ejercicio|mercado|instrumentoNormalizado|secuencia
  */
 function key(record) {
   if (!record || !record.tenantId) {
@@ -105,5 +172,6 @@ module.exports = {
   parseDecimal,
   formatDecimal,
   validateSingleFactor,
+  calculate,
   key
 };
