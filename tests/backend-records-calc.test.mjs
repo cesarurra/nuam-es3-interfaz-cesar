@@ -26,15 +26,17 @@ test("GET /api/records filtra por tenant de sesion y parametros q/market/year", 
   });
   assert.equal(listAll.status, 200);
   const rows = await listAll.json();
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].instrument, "DEMO-CESAR");
-  assert.equal(rows[0].sum, "1.00000000");
+  const demoRow = rows.find((item) => item.instrument === "DEMO-CESAR");
+  assert.ok(demoRow);
+  assert.equal(demoRow.sum, "1.00000000");
 
   const filtered = await fetch(`${baseUrl}/api/records?q=DEMO&market=Chile&year=2026`, {
     headers: { Cookie: cookieA }
   });
   assert.equal(filtered.status, 200);
-  assert.equal((await filtered.json()).length, 1);
+  const filteredRows = await filtered.json();
+  assert.equal(filteredRows.length, 1);
+  assert.equal(filteredRows[0].instrument, "DEMO-CESAR");
 
   const noMatch = await fetch(`${baseUrl}/api/records?q=NO-EXISTE`, {
     headers: { Cookie: cookieA }

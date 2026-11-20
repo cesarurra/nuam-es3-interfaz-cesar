@@ -1,4 +1,5 @@
 ﻿import http from "node:http";
+import crypto from "node:crypto";
 import {
   createSessionStore,
   hashPassword,
@@ -72,7 +73,7 @@ function sessionUser(user) {
   };
 }
 
-function parseDecimalToUnits(value, label) {
+function parseDecimalToUnits(value, label, { maxOne = false } = {}) {
   if (typeof value !== "string") {
     throw new Error(`${label} debe enviarse como texto decimal.`);
   }
@@ -81,7 +82,11 @@ function parseDecimalToUnits(value, label) {
     throw new Error(`${label} tiene un formato decimal inválido.`);
   }
   const [intPart, fracPart = ""] = normalized.split(".");
-  return BigInt(intPart) * SCALE + BigInt(fracPart.padEnd(8, "0"));
+  const units = BigInt(intPart) * SCALE + BigInt(fracPart.padEnd(8, "0"));
+  if (maxOne && units > SCALE) {
+    throw new Error(`${label} no puede superar 1.`);
+  }
+  return units;
 }
 
 function formatUnits(units) {
@@ -93,8 +98,6 @@ function formatUnits(units) {
 }
 
 function divideAndRound8(numeratorUnits, denominatorUnits) {
-  // numeratorUnits y denominatorUnits están en escala 1e8; su cociente ya es adimensional,
-  // por lo que multiplicamos por SCALE para expresarlo con 8 decimales.
   const scaled = numeratorUnits * SCALE;
   const quotient = scaled / denominatorUnits;
   const remainder = scaled % denominatorUnits;
@@ -133,6 +136,99 @@ function calculateFactorsFromAmounts(rawAmounts) {
     factors,
     warnings: []
   };
+}
+
+function validateRecordPayload(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error("Cuerpo JSON inválido.");
+  }
+
+  const instrument = String(body.instrument || "").trim().toUpperCase();
+  if (!/^[A-Z0-9._-]{1,40}$/.test(instrument)) {
+    throw new Error("Instrumento inválido.");
+  }
+
+  const year = String(body.year || "").trim();
+  if (!/^20\d{2}$/.test(year)) {
+    throw new Error("Ejercicio inválido (debe estar entre 2000 y 2099).");
+  }
+
+  const market = String(body.market || "").trim();
+  if (!VALID_MARKETS.has(market)) {
+    throw new Error("Mercado inválido.");
+  }
+
+  const sequence = String(body.sequence || "").trim();
+  if (!/^[1-9]\d{0,5}$/.test(sequence)) {
+    throw new Error("Secuencia inválida (entero entre 1 y 999999).");
+  }
+
+  const paymentDate = String(body.paymentDate || "").trim();
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) ||
+    !Number.isFinite(Date.parse(paymentDate)) ||
+    new Date(paymentDate).toISOString().slice(0, 10) !== paymentDate
+  ) {
+    throw new Error("Fecha de pago inválida.");
+  }
+
+  if (typeof body.registered !== "boolean") {
+    throw new Error("Indica si el instrumento está inscrito.");
+  }
+
+  if (!body.amounts || typeof body.amounts !== "object" || Array.isArray(body.amounts)) {
+    throw new Error("Debes enviar los montos de las columnas 8–37.");
+  }
+
+  if (!body.factors || typeof body.factors !== "object" || Array.isArray(body.factors)) {
+    throw new Error("Debes enviar los factores de las columnas 8–37.");
+  }
+
+  const amounts = {};
+  const factorUnitsMap = {};
+  const factors = {};
+
+  for (const col of COLUMNS) {
+    const amtUnits = parseDecimalToUnits(body.amounts[col] ?? "0", `Monto ${col}`);
+    amounts[col] = formatUnits(amtUnits);
+
+    const facUnits = parseDecimalToUnits(body.factors[col] ?? "0.00000000", `Factor ${col}`, {
+      maxOne: true
+    });
+    factorUnitsMap[col] = facUnits;
+    factors[col] = formatUnits(facUnits);
+  }
+
+  let total8To19 = 0n;
+  for (let col = 8; col <= 19; col++) {
+    total8To19 += parseDecimalToUnits(amounts[col], `Monto ${col}`);
+  }
+  if (total8To19 <= 0n) {
+    throw new Error("El total de montos 8–19 debe ser mayor que cero.");
+  }
+
+  let sum8To16 = 0n;
+  for (let col = 8; col <= 16; col++) {
+    sum8To16 += factorUnitsMap[col];
+  }
+  if (sum8To16 > SCALE) {
+    throw new Error("La suma de factores 8–16 supera 1.");
+  }
+
+  return {
+    instrument,
+    year,
+    market,
+    sequence,
+    paymentDate,
+    registered: body.registered,
+    amounts,
+    factors
+  };
+}
+
+function recordKey(item) {
+  return `${item.tenantId}::${item.instrument}::${item.year}::${item.market}::${item.sequence}`;
 }
 
 function computeSum8To16(record) {
@@ -247,6 +343,25 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
         factors: { ...baseFactors },
         updatedAt: "2026-11-17T18:05:00.000Z"
       }
+    ],
+    [
+      "ref-bolsa-1",
+      {
+        id: "ref-bolsa-1",
+        tenantId: "BOLSA",
+        instrument: "REF-BOLSA",
+        sequence: "1",
+        year: "2026",
+        market: "Chile",
+        origin: "Bolsa",
+        source: "Referencia",
+        paymentDate: "2026-11-17",
+        registered: true,
+        version: 1,
+        amounts: { ...baseAmounts },
+        factors: { ...baseFactors },
+        updatedAt: "2026-11-17T17:00:00.000Z"
+      }
     ]
   ]);
 
@@ -319,7 +434,7 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
       }
 
       const filtered = [...records.values()]
-        .filter((item) => item.tenantId === session.user.tenantId)
+        .filter((item) => item.tenantId === session.user.tenantId || item.tenantId === "BOLSA")
         .filter((item) => (!q ? true : item.instrument.toUpperCase().includes(q)))
         .filter((item) => (!market ? true : item.market === market))
         .filter((item) => (!year ? true : item.year === year))
@@ -345,6 +460,42 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
       }
     }
 
+    if (method === "POST" && pathname === "/api/records") {
+      if (session.user.role !== "broker") {
+        return sendJson(res, 403, { error: "Solo un corredor puede crear registros." });
+      }
+      const csrfHeader = req.headers["x-csrf-token"];
+      if (!isValidCsrf(session, Array.isArray(csrfHeader) ? csrfHeader[0] : csrfHeader)) {
+        return sendJson(res, 403, { error: "Token CSRF inválido." });
+      }
+      const body = await readJsonBody(req);
+      try {
+        const validated = validateRecordPayload(body);
+        const tenantId = session.user.tenantId;
+        const duplicate = [...records.values()].some(
+          (existing) => recordKey(existing) === recordKey({ ...validated, tenantId })
+        );
+        if (duplicate) {
+          return sendJson(res, 409, { error: "Ya existe un registro con esa llave para este corredor." });
+        }
+
+        const id = `rec-${crypto.randomUUID()}`;
+        const createdRecord = {
+          id,
+          tenantId,
+          ...validated,
+          origin: "Corredor",
+          source: "Manual",
+          version: 1,
+          updatedAt: new Date().toISOString()
+        };
+        records.set(id, createdRecord);
+        return sendJson(res, 201, createdRecord);
+      } catch (error) {
+        return sendJson(res, 400, { error: error.message });
+      }
+    }
+
     const matchRecord = pathname.match(/^\/api\/records\/([^/]+)$/);
     if (matchRecord) {
       const recordId = matchRecord[1];
@@ -354,27 +505,69 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
       }
 
       if (session.user.role === "auditor") {
-        return sendJson(res, 403, { error: "El rol auditor no accede a detalle financiero." });
-      }
-
-      if (record.tenantId !== session.user.tenantId) {
-        return sendJson(res, 403, { error: "Sin permiso para operar sobre este corredor." });
+        return sendJson(res, 403, { error: "El rol auditor no accede a detalle ni escritura financiera." });
       }
 
       if (method === "GET") {
+        if (record.tenantId !== session.user.tenantId && record.tenantId !== "BOLSA") {
+          return sendJson(res, 403, { error: "Sin permiso para consultar este registro." });
+        }
         return sendJson(res, 200, record);
       }
 
-      if (method === "PUT" || method === "DELETE") {
-        const csrfHeader = req.headers["x-csrf-token"];
-        if (!isValidCsrf(session, Array.isArray(csrfHeader) ? csrfHeader[0] : csrfHeader)) {
-          return sendJson(res, 403, { error: "Token CSRF inválido." });
+      if (record.tenantId !== session.user.tenantId) {
+        return sendJson(res, 403, { error: "Sin permiso para modificar o eliminar este registro." });
+      }
+
+      const csrfHeader = req.headers["x-csrf-token"];
+      if (!isValidCsrf(session, Array.isArray(csrfHeader) ? csrfHeader[0] : csrfHeader)) {
+        return sendJson(res, 403, { error: "Token CSRF inválido." });
+      }
+
+      if (method === "PUT") {
+        const body = await readJsonBody(req);
+        if (!body || !Number.isSafeInteger(body.version) || body.version < 1) {
+          return sendJson(res, 400, { error: "Debes indicar la versión vigente del registro." });
         }
-        if (method === "DELETE") {
-          records.delete(recordId);
-          return sendJson(res, 200, { ok: true });
+        if (body.version !== record.version) {
+          return sendJson(res, 409, { error: "Conflicto de versión: el registro fue modificado." });
         }
-        return sendJson(res, 200, record);
+        try {
+          const validated = validateRecordPayload(body);
+          const duplicate = [...records.values()].some(
+            (existing) =>
+              existing.id !== record.id &&
+              recordKey(existing) === recordKey({ ...validated, tenantId: record.tenantId })
+          );
+          if (duplicate) {
+            return sendJson(res, 409, { error: "Ya existe otro registro con esa llave." });
+          }
+
+          const updatedRecord = {
+            ...record,
+            ...validated,
+            tenantId: record.tenantId,
+            origin: record.origin,
+            version: record.version + 1,
+            updatedAt: new Date().toISOString()
+          };
+          records.set(recordId, updatedRecord);
+          return sendJson(res, 200, updatedRecord);
+        } catch (error) {
+          return sendJson(res, 400, { error: error.message });
+        }
+      }
+
+      if (method === "DELETE") {
+        const body = await readJsonBody(req);
+        if (!body || !Number.isSafeInteger(body.version) || body.version < 1) {
+          return sendJson(res, 400, { error: "Debes indicar la versión vigente para eliminar." });
+        }
+        if (body.version !== record.version) {
+          return sendJson(res, 409, { error: "Conflicto de versión: no se puede eliminar con versión antigua." });
+        }
+        records.delete(recordId);
+        return sendJson(res, 200, { ok: true });
       }
     }
 
