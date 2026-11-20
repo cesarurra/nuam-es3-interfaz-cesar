@@ -2,10 +2,10 @@
 import crypto from "node:crypto";
 import {
   createSessionStore,
-  hashPassword,
   isValidCsrf,
   verifyPassword
 } from "./auth.js";
+import { createMemoryStore } from "./store.js";
 
 const COOKIE_NAME = "nuam_sid";
 const SCALE = 100000000n;
@@ -34,26 +34,29 @@ function parseCookies(req) {
   return map;
 }
 
-function readJsonBody(req) {
+function readRawBody(req) {
   return new Promise((resolve, reject) => {
     let raw = "";
     req.on("data", (chunk) => {
       raw += chunk.toString("utf8");
-      if (raw.length > 1_000_000) {
+      if (raw.length > 2_000_000) {
         reject(new Error("Cuerpo demasiado grande"));
         req.destroy();
       }
     });
-    req.on("end", () => {
-      if (!raw) return resolve({});
-      try {
-        resolve(JSON.parse(raw));
-      } catch {
-        resolve(null);
-      }
-    });
+    req.on("end", () => resolve(raw));
     req.on("error", reject);
   });
+}
+
+async function readJsonBody(req) {
+  const raw = await readRawBody(req);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 function buildCookie(name, value, { maxAgeSec = 28800 } = {}) {
@@ -227,6 +230,128 @@ function validateRecordPayload(body) {
   };
 }
 
+function splitCsvLine(line, delimiter) {
+  const fields = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === delimiter && !inQuotes) {
+      fields.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current.trim());
+  return fields;
+}
+
+function parseCsvRows(csvText) {
+  if (typeof csvText !== "string") {
+    throw new Error("Debes enviar contenido CSV en texto.");
+  }
+  const cleanText = csvText.replace(/^\uFEFF/, "").trim();
+  if (!cleanText) {
+    throw new Error("El archivo CSV está vacío.");
+  }
+
+  const lines = cleanText
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  if (lines.length === 0) {
+    throw new Error("No hay filas válidas en el CSV.");
+  }
+
+  const firstLine = lines[0];
+  const semiCount = (firstLine.match(/;/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const delimiter = semiCount > commaCount ? ";" : ",";
+
+  const firstFields = splitCsvLine(firstLine, delimiter).map((f) => f.toLowerCase());
+  const hasHeader =
+    firstFields[0] === "instrument" ||
+    firstFields[0] === "instrumento" ||
+    firstFields.includes("year") ||
+    firstFields.includes("ejercicio");
+
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+  if (dataLines.length === 0) {
+    throw new Error("El CSV no contiene registros de datos.");
+  }
+
+  return dataLines.map((line, idx) => {
+    const lineNumber = hasHeader ? idx + 2 : idx + 1;
+    const cols = splitCsvLine(line, delimiter);
+    if (cols.length < 6) {
+      throw new Error(`Fila ${lineNumber}: faltan columnas obligatorias.`);
+    }
+
+    const [instrument, year, market, sequence, paymentDate, registeredRaw, ...rest] = cols;
+    const regNormalized = String(registeredRaw || "").trim().toLowerCase();
+    let registered;
+    if (["true", "1", "si", "sí"].includes(regNormalized)) {
+      registered = true;
+    } else if (["false", "0", "no"].includes(regNormalized)) {
+      registered = false;
+    } else {
+      throw new Error(`Fila ${lineNumber}: valor de inscripción inválido.`);
+    }
+
+    const amounts = {};
+    const factors = {};
+
+    for (let i = 0; i < COLUMNS.length; i++) {
+      const colNum = COLUMNS[i];
+      const rawAmt = rest[i];
+      if (rawAmt === undefined || rawAmt === "") {
+        throw new Error(`Fila ${lineNumber}: falta monto ${colNum}.`);
+      }
+      amounts[colNum] = rawAmt;
+
+      const rawFac = rest[COLUMNS.length + i];
+      if (rawFac !== undefined && rawFac !== "") {
+        factors[colNum] = rawFac;
+      }
+    }
+
+    let computedFactors = factors;
+    if (Object.keys(factors).length === 0) {
+      computedFactors = calculateFactorsFromAmounts(amounts).factors;
+    } else {
+      for (const colNum of COLUMNS) {
+        if (computedFactors[colNum] === undefined) {
+          computedFactors[colNum] = "0.00000000";
+        }
+      }
+    }
+
+    return {
+      lineNumber,
+      payload: validateRecordPayload({
+        instrument,
+        year,
+        market,
+        sequence,
+        paymentDate,
+        registered,
+        amounts,
+        factors: computedFactors
+      })
+    };
+  });
+}
+
 function recordKey(item) {
   return `${item.tenantId}::${item.instrument}::${item.year}::${item.market}::${item.sequence}`;
 }
@@ -253,131 +378,16 @@ function toListItem(record) {
   };
 }
 
-export function createApp({ storage = "firestore", setupRequired = false } = {}) {
+export function createApp({
+  storage = "firestore",
+  setupRequired = false,
+  store = createMemoryStore()
+} = {}) {
   const sessions = createSessionStore();
-  const auditEvents = [];
-  const demoPasswordHash = hashPassword("DemoNuam2026!");
 
-  function logAudit({ action, actorId = null, actorRole = null, tenantId = null, targetId = null, detail = "" }) {
-    auditEvents.push({
-      id: `aud-${crypto.randomUUID()}`,
-      timestamp: new Date().toISOString(),
-      action,
-      actorId,
-      actorRole,
-      tenantId,
-      targetId,
-      detail
-    });
+  async function logAudit(entry) {
+    await store.appendAudit(entry);
   }
-
-  const users = new Map([
-    [
-      "cesar@demo.local",
-      {
-        id: "u-broker-a",
-        name: "Corredor A",
-        email: "cesar@demo.local",
-        role: "broker",
-        tenantId: "tenant-a",
-        passwordHash: demoPasswordHash
-      }
-    ],
-    [
-      "corredor.b@demo.local",
-      {
-        id: "u-broker-b",
-        name: "Corredor B",
-        email: "corredor.b@demo.local",
-        role: "broker",
-        tenantId: "tenant-b",
-        passwordHash: demoPasswordHash
-      }
-    ],
-    [
-      "auditor@demo.local",
-      {
-        id: "u-auditor-1",
-        name: "Auditor",
-        email: "auditor@demo.local",
-        role: "auditor",
-        tenantId: "tenant-audit",
-        passwordHash: demoPasswordHash
-      }
-    ]
-  ]);
-
-  const baseFactors = Object.fromEntries(COLUMNS.map((c) => [c, "0.00000000"]));
-  baseFactors[8] = "0.52277431";
-  baseFactors[9] = "0.17400052";
-  baseFactors[11] = "0.30322517";
-
-  const baseAmounts = Object.fromEntries(COLUMNS.map((c) => [c, "0.00000000"]));
-  baseAmounts[8] = "192770580.00000000";
-  baseAmounts[9] = "64161878.00000000";
-  baseAmounts[11] = "111812860.00000000";
-  baseAmounts[25] = "71298705.00000000";
-  baseAmounts[30] = "15837333.00000000";
-
-  const records = new Map([
-    [
-      "rec-a-1",
-      {
-        id: "rec-a-1",
-        tenantId: "tenant-a",
-        instrument: "DEMO-CESAR",
-        sequence: "1",
-        year: "2026",
-        market: "Chile",
-        origin: "Corredor",
-        source: "Manual",
-        paymentDate: "2026-11-17",
-        registered: false,
-        version: 1,
-        amounts: { ...baseAmounts },
-        factors: { ...baseFactors },
-        updatedAt: "2026-11-17T18:00:00.000Z"
-      }
-    ],
-    [
-      "rec-b-1",
-      {
-        id: "rec-b-1",
-        tenantId: "tenant-b",
-        instrument: "OTRO-CORREDOR",
-        sequence: "2",
-        year: "2026",
-        market: "Perú",
-        origin: "Corredor",
-        source: "Manual",
-        paymentDate: "2026-11-17",
-        registered: true,
-        version: 1,
-        amounts: { ...baseAmounts },
-        factors: { ...baseFactors },
-        updatedAt: "2026-11-17T18:05:00.000Z"
-      }
-    ],
-    [
-      "ref-bolsa-1",
-      {
-        id: "ref-bolsa-1",
-        tenantId: "BOLSA",
-        instrument: "REF-BOLSA",
-        sequence: "1",
-        year: "2026",
-        market: "Chile",
-        origin: "Bolsa",
-        source: "Referencia",
-        paymentDate: "2026-11-17",
-        registered: true,
-        version: 1,
-        amounts: { ...baseAmounts },
-        factors: { ...baseFactors },
-        updatedAt: "2026-11-17T17:00:00.000Z"
-      }
-    ]
-  ]);
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://127.0.0.1:3000");
@@ -396,23 +406,25 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
         return sendJson(res, 400, { error: "Credenciales inválidas." });
       }
       const normalizedEmail = body.email.trim().toLowerCase();
-      const user = users.get(normalizedEmail);
+      const user = await store.findUserByEmail(normalizedEmail);
       if (!user || !verifyPassword(body.password, user.passwordHash)) {
-        logAudit({
+        await logAudit({
           action: "LOGIN_FAILED",
           actorId: user ? user.id : null,
           actorRole: user ? user.role : null,
           tenantId: user ? user.tenantId : null,
+          targetId: null,
           detail: "Intento de inicio de sesión rechazado."
         });
         return sendJson(res, 401, { error: "Correo o contraseña incorrectos." });
       }
       const created = sessions.create(user);
-      logAudit({
+      await logAudit({
         action: "LOGIN",
         actorId: user.id,
         actorRole: user.role,
         tenantId: user.tenantId,
+        targetId: null,
         detail: "Inicio de sesión correcto."
       });
       return sendJson(
@@ -439,11 +451,12 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
 
     if (method === "POST" && pathname === "/api/logout") {
       sessions.destroy(cookies.get(COOKIE_NAME));
-      logAudit({
+      await logAudit({
         action: "LOGOUT",
         actorId: session.user.id,
         actorRole: session.user.role,
         tenantId: session.user.tenantId,
+        targetId: null,
         detail: "Cierre de sesión."
       });
       return sendJson(
@@ -455,11 +468,106 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
     }
 
     if (method === "GET" && pathname === "/api/audit") {
+      const allEvents = await store.listAudit();
       const visibleEvents =
         session.user.role === "auditor"
-          ? auditEvents
-          : auditEvents.filter((evt) => evt.tenantId === session.user.tenantId);
+          ? allEvents
+          : allEvents.filter((evt) => evt.tenantId === session.user.tenantId);
       return sendJson(res, 200, visibleEvents);
+    }
+
+    if (method === "POST" && pathname === "/api/import") {
+      if (session.user.role !== "broker") {
+        await logAudit({
+          action: "FORBIDDEN",
+          actorId: session.user.id,
+          actorRole: session.user.role,
+          tenantId: session.user.tenantId,
+          targetId: null,
+          detail: "Intento de importar CSV sin rol de corredor."
+        });
+        return sendJson(res, 403, { error: "Solo un corredor puede importar registros." });
+      }
+      const csrfHeader = req.headers["x-csrf-token"];
+      if (!isValidCsrf(session, Array.isArray(csrfHeader) ? csrfHeader[0] : csrfHeader)) {
+        return sendJson(res, 403, { error: "Token CSRF inválido." });
+      }
+
+      const contentType = String(req.headers["content-type"] || "");
+      let csvText = "";
+      if (contentType.includes("application/json")) {
+        const body = await readJsonBody(req);
+        if (!body || typeof body.csv !== "string") {
+          return sendJson(res, 400, { error: "Debes enviar el campo csv como texto." });
+        }
+        csvText = body.csv;
+      } else {
+        csvText = await readRawBody(req);
+      }
+
+      let parsedRows;
+      try {
+        parsedRows = parseCsvRows(csvText);
+      } catch (error) {
+        return sendJson(res, 400, { error: error.message });
+      }
+
+      const tenantId = session.user.tenantId;
+      const existingRecords = await store.listRecords();
+      const created = [];
+      const errors = [];
+
+      for (const item of parsedRows) {
+        const duplicate = existingRecords.some(
+          (existing) => recordKey(existing) === recordKey({ ...item.payload, tenantId })
+        );
+        if (duplicate) {
+          errors.push({
+            line: item.lineNumber,
+            status: 409,
+            error: `Llave duplicada para ${item.payload.instrument}/${item.payload.sequence}.`
+          });
+          continue;
+        }
+
+        const id = `rec-${crypto.randomUUID()}`;
+        const record = await store.createRecord({
+          id,
+          tenantId,
+          ...item.payload,
+          origin: "Corredor",
+          source: "CSV",
+          version: 1,
+          updatedAt: new Date().toISOString()
+        });
+        existingRecords.push(record);
+        created.push(record);
+      }
+
+      if (created.length === 0) {
+        const firstStatus = errors[0]?.status === 409 ? 409 : 400;
+        return sendJson(res, firstStatus, {
+          error: errors[0]?.error || "No se pudo importar ninguna fila.",
+          imported: 0,
+          created: [],
+          errors
+        });
+      }
+
+      await logAudit({
+        action: "RECORD_IMPORT",
+        actorId: session.user.id,
+        actorRole: session.user.role,
+        tenantId,
+        targetId: null,
+        detail: `Importados ${created.length} registros por CSV (errores: ${errors.length}).`
+      });
+
+      return sendJson(res, 201, {
+        imported: created.length,
+        created,
+        errors
+      });
     }
 
     if (method === "GET" && pathname === "/api/records") {
@@ -477,7 +585,8 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
         return sendJson(res, 400, { error: "El ejercicio debe ser un año entre 2000 y 2099." });
       }
 
-      const filtered = [...records.values()]
+      const allRecords = await store.listRecords();
+      const filtered = allRecords
         .filter((item) => item.tenantId === session.user.tenantId || item.tenantId === "BOLSA")
         .filter((item) => (!q ? true : item.instrument.toUpperCase().includes(q)))
         .filter((item) => (!market ? true : item.market === market))
@@ -506,11 +615,12 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
 
     if (method === "POST" && pathname === "/api/records") {
       if (session.user.role !== "broker") {
-        logAudit({
+        await logAudit({
           action: "FORBIDDEN",
           actorId: session.user.id,
           actorRole: session.user.role,
           tenantId: session.user.tenantId,
+          targetId: null,
           detail: "Intento de crear registro sin rol de corredor."
         });
         return sendJson(res, 403, { error: "Solo un corredor puede crear registros." });
@@ -523,22 +633,24 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
       try {
         const validated = validateRecordPayload(body);
         const tenantId = session.user.tenantId;
-        const duplicate = [...records.values()].some(
+        const existingRecords = await store.listRecords();
+        const duplicate = existingRecords.some(
           (existing) => recordKey(existing) === recordKey({ ...validated, tenantId })
         );
         if (duplicate) {
-          logAudit({
+          await logAudit({
             action: "CONFLICT",
             actorId: session.user.id,
             actorRole: session.user.role,
             tenantId,
+            targetId: null,
             detail: `Llave duplicada para ${validated.instrument}/${validated.sequence}.`
           });
           return sendJson(res, 409, { error: "Ya existe un registro con esa llave para este corredor." });
         }
 
         const id = `rec-${crypto.randomUUID()}`;
-        const createdRecord = {
+        const createdRecord = await store.createRecord({
           id,
           tenantId,
           ...validated,
@@ -546,9 +658,8 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
           source: "Manual",
           version: 1,
           updatedAt: new Date().toISOString()
-        };
-        records.set(id, createdRecord);
-        logAudit({
+        });
+        await logAudit({
           action: "RECORD_CREATE",
           actorId: session.user.id,
           actorRole: session.user.role,
@@ -565,13 +676,13 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
     const matchRecord = pathname.match(/^\/api\/records\/([^/]+)$/);
     if (matchRecord) {
       const recordId = matchRecord[1];
-      const record = records.get(recordId);
+      const record = await store.getRecordById(recordId);
       if (!record) {
         return sendJson(res, 404, { error: "Registro no encontrado." });
       }
 
       if (session.user.role === "auditor") {
-        logAudit({
+        await logAudit({
           action: "FORBIDDEN",
           actorId: session.user.id,
           actorRole: session.user.role,
@@ -584,7 +695,7 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
 
       if (method === "GET") {
         if (record.tenantId !== session.user.tenantId && record.tenantId !== "BOLSA") {
-          logAudit({
+          await logAudit({
             action: "FORBIDDEN",
             actorId: session.user.id,
             actorRole: session.user.role,
@@ -598,7 +709,7 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
       }
 
       if (record.tenantId !== session.user.tenantId) {
-        logAudit({
+        await logAudit({
           action: "FORBIDDEN",
           actorId: session.user.id,
           actorRole: session.user.role,
@@ -620,7 +731,7 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
           return sendJson(res, 400, { error: "Debes indicar la versión vigente del registro." });
         }
         if (body.version !== record.version) {
-          logAudit({
+          await logAudit({
             action: "CONFLICT",
             actorId: session.user.id,
             actorRole: session.user.role,
@@ -632,13 +743,14 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
         }
         try {
           const validated = validateRecordPayload(body);
-          const duplicate = [...records.values()].some(
+          const existingRecords = await store.listRecords();
+          const duplicate = existingRecords.some(
             (existing) =>
               existing.id !== record.id &&
               recordKey(existing) === recordKey({ ...validated, tenantId: record.tenantId })
           );
           if (duplicate) {
-            logAudit({
+            await logAudit({
               action: "CONFLICT",
               actorId: session.user.id,
               actorRole: session.user.role,
@@ -650,16 +762,15 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
           }
 
           const nextVersion = record.version + 1;
-          const updatedRecord = {
+          const updatedRecord = await store.updateRecord({
             ...record,
             ...validated,
             tenantId: record.tenantId,
             origin: record.origin,
             version: nextVersion,
             updatedAt: new Date().toISOString()
-          };
-          records.set(recordId, updatedRecord);
-          logAudit({
+          });
+          await logAudit({
             action: "RECORD_UPDATE",
             actorId: session.user.id,
             actorRole: session.user.role,
@@ -679,7 +790,7 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
           return sendJson(res, 400, { error: "Debes indicar la versión vigente para eliminar." });
         }
         if (body.version !== record.version) {
-          logAudit({
+          await logAudit({
             action: "CONFLICT",
             actorId: session.user.id,
             actorRole: session.user.role,
@@ -689,8 +800,8 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
           });
           return sendJson(res, 409, { error: "Conflicto de versión: no se puede eliminar con versión antigua." });
         }
-        records.delete(recordId);
-        logAudit({
+        await store.deleteRecord(recordId);
+        await logAudit({
           action: "RECORD_DELETE",
           actorId: session.user.id,
           actorRole: session.user.role,
