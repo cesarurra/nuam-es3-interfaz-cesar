@@ -255,7 +255,21 @@ function toListItem(record) {
 
 export function createApp({ storage = "firestore", setupRequired = false } = {}) {
   const sessions = createSessionStore();
+  const auditEvents = [];
   const demoPasswordHash = hashPassword("DemoNuam2026!");
+
+  function logAudit({ action, actorId = null, actorRole = null, tenantId = null, targetId = null, detail = "" }) {
+    auditEvents.push({
+      id: `aud-${crypto.randomUUID()}`,
+      timestamp: new Date().toISOString(),
+      action,
+      actorId,
+      actorRole,
+      tenantId,
+      targetId,
+      detail
+    });
+  }
 
   const users = new Map([
     [
@@ -381,11 +395,26 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
       if (!body || typeof body.email !== "string" || typeof body.password !== "string") {
         return sendJson(res, 400, { error: "Credenciales inválidas." });
       }
-      const user = users.get(body.email.trim().toLowerCase());
+      const normalizedEmail = body.email.trim().toLowerCase();
+      const user = users.get(normalizedEmail);
       if (!user || !verifyPassword(body.password, user.passwordHash)) {
+        logAudit({
+          action: "LOGIN_FAILED",
+          actorId: user ? user.id : null,
+          actorRole: user ? user.role : null,
+          tenantId: user ? user.tenantId : null,
+          detail: "Intento de inicio de sesión rechazado."
+        });
         return sendJson(res, 401, { error: "Correo o contraseña incorrectos." });
       }
       const created = sessions.create(user);
+      logAudit({
+        action: "LOGIN",
+        actorId: user.id,
+        actorRole: user.role,
+        tenantId: user.tenantId,
+        detail: "Inicio de sesión correcto."
+      });
       return sendJson(
         res,
         200,
@@ -410,12 +439,27 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
 
     if (method === "POST" && pathname === "/api/logout") {
       sessions.destroy(cookies.get(COOKIE_NAME));
+      logAudit({
+        action: "LOGOUT",
+        actorId: session.user.id,
+        actorRole: session.user.role,
+        tenantId: session.user.tenantId,
+        detail: "Cierre de sesión."
+      });
       return sendJson(
         res,
         200,
         { ok: true },
         { "Set-Cookie": clearCookie(COOKIE_NAME) }
       );
+    }
+
+    if (method === "GET" && pathname === "/api/audit") {
+      const visibleEvents =
+        session.user.role === "auditor"
+          ? auditEvents
+          : auditEvents.filter((evt) => evt.tenantId === session.user.tenantId);
+      return sendJson(res, 200, visibleEvents);
     }
 
     if (method === "GET" && pathname === "/api/records") {
@@ -462,6 +506,13 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
 
     if (method === "POST" && pathname === "/api/records") {
       if (session.user.role !== "broker") {
+        logAudit({
+          action: "FORBIDDEN",
+          actorId: session.user.id,
+          actorRole: session.user.role,
+          tenantId: session.user.tenantId,
+          detail: "Intento de crear registro sin rol de corredor."
+        });
         return sendJson(res, 403, { error: "Solo un corredor puede crear registros." });
       }
       const csrfHeader = req.headers["x-csrf-token"];
@@ -476,6 +527,13 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
           (existing) => recordKey(existing) === recordKey({ ...validated, tenantId })
         );
         if (duplicate) {
+          logAudit({
+            action: "CONFLICT",
+            actorId: session.user.id,
+            actorRole: session.user.role,
+            tenantId,
+            detail: `Llave duplicada para ${validated.instrument}/${validated.sequence}.`
+          });
           return sendJson(res, 409, { error: "Ya existe un registro con esa llave para este corredor." });
         }
 
@@ -490,6 +548,14 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
           updatedAt: new Date().toISOString()
         };
         records.set(id, createdRecord);
+        logAudit({
+          action: "RECORD_CREATE",
+          actorId: session.user.id,
+          actorRole: session.user.role,
+          tenantId,
+          targetId: id,
+          detail: `Creado ${createdRecord.instrument} (${createdRecord.year}/${createdRecord.sequence}) v1.`
+        });
         return sendJson(res, 201, createdRecord);
       } catch (error) {
         return sendJson(res, 400, { error: error.message });
@@ -505,17 +571,41 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
       }
 
       if (session.user.role === "auditor") {
+        logAudit({
+          action: "FORBIDDEN",
+          actorId: session.user.id,
+          actorRole: session.user.role,
+          tenantId: session.user.tenantId,
+          targetId: recordId,
+          detail: "Auditor intentó acceder a detalle/operación financiera."
+        });
         return sendJson(res, 403, { error: "El rol auditor no accede a detalle ni escritura financiera." });
       }
 
       if (method === "GET") {
         if (record.tenantId !== session.user.tenantId && record.tenantId !== "BOLSA") {
+          logAudit({
+            action: "FORBIDDEN",
+            actorId: session.user.id,
+            actorRole: session.user.role,
+            tenantId: session.user.tenantId,
+            targetId: recordId,
+            detail: "Intento de leer registro de otro corredor."
+          });
           return sendJson(res, 403, { error: "Sin permiso para consultar este registro." });
         }
         return sendJson(res, 200, record);
       }
 
       if (record.tenantId !== session.user.tenantId) {
+        logAudit({
+          action: "FORBIDDEN",
+          actorId: session.user.id,
+          actorRole: session.user.role,
+          tenantId: session.user.tenantId,
+          targetId: recordId,
+          detail: "Intento de modificar o eliminar registro ajeno o de referencia."
+        });
         return sendJson(res, 403, { error: "Sin permiso para modificar o eliminar este registro." });
       }
 
@@ -530,6 +620,14 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
           return sendJson(res, 400, { error: "Debes indicar la versión vigente del registro." });
         }
         if (body.version !== record.version) {
+          logAudit({
+            action: "CONFLICT",
+            actorId: session.user.id,
+            actorRole: session.user.role,
+            tenantId: record.tenantId,
+            targetId: recordId,
+            detail: `Conflicto de versión en PUT (enviada ${body.version}, vigente ${record.version}).`
+          });
           return sendJson(res, 409, { error: "Conflicto de versión: el registro fue modificado." });
         }
         try {
@@ -540,18 +638,35 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
               recordKey(existing) === recordKey({ ...validated, tenantId: record.tenantId })
           );
           if (duplicate) {
+            logAudit({
+              action: "CONFLICT",
+              actorId: session.user.id,
+              actorRole: session.user.role,
+              tenantId: record.tenantId,
+              targetId: recordId,
+              detail: "Conflicto por llave duplicada al actualizar."
+            });
             return sendJson(res, 409, { error: "Ya existe otro registro con esa llave." });
           }
 
+          const nextVersion = record.version + 1;
           const updatedRecord = {
             ...record,
             ...validated,
             tenantId: record.tenantId,
             origin: record.origin,
-            version: record.version + 1,
+            version: nextVersion,
             updatedAt: new Date().toISOString()
           };
           records.set(recordId, updatedRecord);
+          logAudit({
+            action: "RECORD_UPDATE",
+            actorId: session.user.id,
+            actorRole: session.user.role,
+            tenantId: record.tenantId,
+            targetId: recordId,
+            detail: `Actualizado ${updatedRecord.instrument} a v${nextVersion}.`
+          });
           return sendJson(res, 200, updatedRecord);
         } catch (error) {
           return sendJson(res, 400, { error: error.message });
@@ -564,9 +679,25 @@ export function createApp({ storage = "firestore", setupRequired = false } = {})
           return sendJson(res, 400, { error: "Debes indicar la versión vigente para eliminar." });
         }
         if (body.version !== record.version) {
+          logAudit({
+            action: "CONFLICT",
+            actorId: session.user.id,
+            actorRole: session.user.role,
+            tenantId: record.tenantId,
+            targetId: recordId,
+            detail: `Conflicto de versión en DELETE (enviada ${body.version}, vigente ${record.version}).`
+          });
           return sendJson(res, 409, { error: "Conflicto de versión: no se puede eliminar con versión antigua." });
         }
         records.delete(recordId);
+        logAudit({
+          action: "RECORD_DELETE",
+          actorId: session.user.id,
+          actorRole: session.user.role,
+          tenantId: record.tenantId,
+          targetId: recordId,
+          detail: `Eliminado ${record.instrument} (${record.year}/${record.sequence}).`
+        });
         return sendJson(res, 200, { ok: true });
       }
     }
