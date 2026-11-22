@@ -60,3 +60,38 @@ No se reportaron diferencias respecto a lo esperado en estos seis casos. El alca
 - Revisar auditoría de ingreso, modificación y eliminación en el backend, aislamiento con corredor B, referencia Bolsa y conflicto de versión con dos pestañas.
 - Revisar tamaño 1024×768, teclado, foco y desplazamientos, especialmente la tabla de 30 factores y las acciones a la derecha del listado.
 - Repetir integración contra los módulos reconstruidos de Ignacio y Nibaldo; las verificaciones presentes usan el backend del prototipo inicial.
+
+## Verificación automatizada en navegador · 22 de noviembre de 2026
+
+Ejecutor: Codex. Windows, Node.js 24.18.0, Chrome automatizado con Playwright. Interfaz de esta rama sobre `1ef3418`, con proxy local hacia `ignacio/backend` en `3f9a488`. Se ejecutó `createApp({ storage: 'memory' })` con las cuentas y datos de demostración de Ignacio. Sin Firestore ni datos externos.
+
+| Caso ejecutado | Esperado | Observado |
+| --- | --- | --- |
+| Acceso, recarga y salida | Rechazar credenciales incorrectas; restaurar una sesión válida al recargar; invalidarla al salir | Login 401 y 200, cookie HttpOnly, listado visible tras recargar, logout 200 y /me 401 |
+| Filtrado y alcance | Instrumento, mercado y ejercicio devuelven el registro de prueba; excluir la fila sembrada del otro corredor; ofrecer solo «Usar referencia» para Bolsa | Filtro combinado devuelve solo QA-CODEX; no aparece OTRO-CORREDOR para A; referencia con acción de copia y sin eliminación |
+| HDU, alta y edición | Total 368745318.00000000, F8 0.52277431, suma 1; conservar No inscrito y F34 manual | Cálculo 200 con esos valores; alta 201; edición 200; «No inscrito» al abrir y F34 0.12500000 al reabrir |
+| Conflicto y validación | Rechazar la versión anterior sin perder el borrador; bloquear suma mayor que 1 | Segunda pestaña guardó primero; primera recibió 409 y conservó F34 0.37500000. F10 0.00000001 activó el mensaje de suma superior a 1 y quedó visible |
+| Eliminación y auditoría | Escape conserva fila; confirmar quita fila y quedan eventos de CRUD | Fila visible tras Escape; DELETE 200 y fila retirada; /api/audit devolvió eventos LOGIN, RECORD_CREATE, RECORD_UPDATE y RECORD_DELETE |
+| Teclado y diseño adaptable | Saltar al contenido sin cambiar pantalla; mover foco al editar; desplazar tabla angosta con teclado | En #acceso, Tab y Enter enfocaron el contenido y conservaron la pantalla; al editar se enfocó el título. A 390 px, Tab enfocó la tabla y Flecha derecha la desplazó. El formulario no desbordó el documento a 1440×900, 1024×768, 390×844 ni 320×640 |
+
+[Captura de Chrome a 390×844](evidencias/formulario-390.png), con datos de prueba. Las comprobaciones de teclado cubren los casos de la tabla y no constituyen una auditoría completa de accesibilidad.
+
+Antes de las correcciones, Chrome reprodujo el cambio de pantalla al accionar «Saltar al contenido» y la falta de la acción de edición en el listado de Ignacio. La API resumida no incluye `tenantId` ni `version`. La interfaz usa el origen del resumen para mostrar las acciones y comprueba titularidad y versión con el detalle antes de confirmar el borrado. El servidor sigue autorizando las escrituras.
+
+- En la interfaz se ejecutaron `npm run check` y `npm test`: sintaxis correcta, 31 pruebas aprobadas. En la rama de Ignacio se ejecutó `node --test tests/*.test.mjs`: 5 aprobadas.
+- En `nibaldo/datos` (`abab267`) se verificaron aisladamente el total HDU, F8, F34 manual, suma exacta, rechazo de total cero y almacenamiento en memoria por instancia. La API de Ignacio calcula con su propia función y usa un contrato de almacenamiento diferente. Quedan pendientes conectar el cálculo y la capa de datos de Nibaldo, configurar el motor acordado y verificar persistencia tras reinicio, auditoría transaccional y el alcance de CSV.
+- Correcciones, automatización y documentación elaboradas con asistencia de Codex. El recorrido de esta sección fue automatizado y se registra aparte de las acciones anteriores ejecutadas por César.
+
+## Verificación de los tres módulos · 22 de noviembre de 2026
+
+Codex ejecutó las pruebas en Windows con Node.js 24.18.0 y Chrome 157 automatizado con Playwright. Rama `codex/integracion-nuam`, con la interfaz corregida, los commits de Ignacio y Nibaldo, y el adaptador local. Se usó un archivo JSON nuevo de demostración, aislado y descartado al finalizar.
+
+| Caso | Esperado | Resultado observado |
+| --- | --- | --- |
+| Acceso, filtros y separación de corredores | Rechazar clave incorrecta, entrar con clave válida y excluir registros de otro corredor | Chrome recibió HTTP 401 y 200. El listado mostró los registros propios y la referencia de Bolsa. La prueba de API verificó los roles y el aislamiento A/B |
+| Cálculo HDU y borde | Total 368745318.00000000, F8 0.52277431, suma exacta 1.00000000 | Coincidieron. La prueba de API de seis montos iguales obtuvo 0.16666667 por factor y la advertencia de suma 1.00000002 del dominio de Nibaldo |
+| Alta, edición y errores | Guardar calificación no inscrita y factor manual. Rechazar versión anterior y suma mayor que 1 | Alta 201, edición 200 y conflicto 409 entre dos pestañas. El dato ingresado se conservó en el borrador ante conflicto y error de suma |
+| Reinicio real de la API | Volver a iniciar sesión y abrir el mismo registro con los valores guardados | Tras detener e iniciar un nuevo proceso, el registro conservó «No inscrito», F34 0.25000000 y F10 0.00000000. La sesión previa expiró con HTTP 401. [Captura al reabrir tras reinicio](evidencias/registro-tras-reinicio.png) |
+| Eliminación y auditoría | Escape cancela, confirmar elimina, y el historial reúne eventos anteriores y posteriores al reinicio | Escape conservó el registro. La eliminación respondió 200. La consulta al log devolvió LOGIN, RECORD_CREATE, RECORD_UPDATE y RECORD_DELETE |
+
+Se ejecutaron `npm run check` y `npm test`: **37 pruebas aprobadas, 0 fallos**. Se repitieron las comprobaciones de teclado y de ancho del formulario de la sección anterior. Se verificó persistencia ante reinicio del proceso, con datos de ejemplo. Quedan fuera de esta ejecución Firestore, estrés y la garantía de auditoría atómica junto a cada escritura. La ejecución se registra como automatizada por Codex.

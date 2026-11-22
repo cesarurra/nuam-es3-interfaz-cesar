@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { canEdit, recordPath, createOperations } = require('../public/operations');
+const { canEdit, listAction, recordPath, createOperations } = require('../public/operations');
 const { validateDraft, exampleAmounts, columns } = require('../public/factor-form');
 const user = { id: 'a', role: 'broker', tenantId: 'A' };
 const record = { id: 'registro-1', version: 2, tenantId: 'A' };
@@ -57,4 +57,15 @@ test('C07: borrador se valida con exactitud y bloquea suma inválida o total cer
 test('C08: borrar sin versión válida no envía una petición', async () => {
   const service = createOperations({ request: () => assert.fail('No debe invocarse') }, () => user);
   await assert.rejects(service.remove({ ...record, version: undefined }), /confirmación válida/);
+});
+
+test('C09: acciones en listados de Ignacio y listados con tenantId', () => {
+  assert.equal(listAction(user, { origin: 'Corredor' }), 'edit');
+  assert.equal(listAction(user, { origin: 'Bolsa' }), 'reference');
+  assert.equal(listAction(user, { tenantId: 'A' }), 'edit');
+  assert.equal(listAction(user, { tenantId: 'B', origin: 'Corredor' }), null);
+  assert.equal(listAction(user, { tenantId: 'BOLSA' }), 'reference');
+  assert.equal(listAction(user, {}), null);
+  assert.equal(listAction({ role: 'auditor' }, { origin: 'Corredor' }), null);
+  assert.equal(canEdit(user, { origin: 'Corredor' }), false);
 });
