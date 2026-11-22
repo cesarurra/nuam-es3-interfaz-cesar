@@ -50,7 +50,7 @@ Cada commit debe describir el avance efectivamente implementado. Cada etapa tend
 
 ## Guía de estilo
 
-Azul #112C3E, verde #B9F068, fondo #F5F7F9, texto #1B3445; tipografía Segoe UI/Arial. Navegación con estado activo, encabezados, tarjetas y foco visible; adaptación CSS a escritorio y pantalla estrecha pendiente de comprobación visual.
+Azul #112C3E, verde #B9F068, fondo #F5F7F9, texto #1B3445; tipografía Segoe UI/Arial. Navegación con estado activo, encabezados, tarjetas y foco visible. El formulario se comprobó en escritorio y pantalla estrecha.
 
 ## Evidencia
 
@@ -59,7 +59,19 @@ Ver `docs/AVANCES.md`. No hay contraseñas, base de datos ni credenciales en est
 ## Qué falta para la entrega
 
 - El recorrido CRUD básico de etapa 5 fue ejecutado por César contra el backend del prototipo anterior; alta tiene captura y edición/validación/eliminación tienen confirmaciones textuales. Completar las capturas y verificaciones detalladas en docs/PRUEBAS_MANUALES_CESAR.md.
-- Probar filtros con datos existentes, cambios manuales de factores, conflictos y aislamiento entre usuarios.
-- Probar el contrato contra los módulos reconstruidos de Ignacio y Nibaldo. Las capturas recibidas hasta etapa 4 usaron el backend del prototipo inicial; no acreditan el trabajo reconstruido del equipo.
-- Completar revisión responsive, teclado/foco y documentación de pruebas.
+- Repetir el recorrido con el cálculo de Nibaldo conectado a la API y el motor de datos acordado. Verificar persistencia tras reinicio, auditoría transaccional y aislamiento entre usuarios en ese entorno.
+- Completar la revisión de accesibilidad y las pruebas de CSV según el alcance acordado con el docente.
 - Confirmar invitación aceptada por el docente, condiciones de uso de IA, motor de datos y repositorio de integración. Esta interfaz no incluye base de datos ni importación CSV/auditoría, que corresponden a los módulos del equipo.
+
+## Verificación con el backend reconstruido de Ignacio
+
+El 22 de noviembre se verificó en Chrome el acceso, cálculo y CRUD contra `ignacio/backend` en modo memoria. Para reproducir el entorno en dos terminales, desde la raíz del repositorio:
+
+```powershell
+git fetch origin
+git worktree add --detach ../nuam-backend 3f9a488
+Set-Location ../nuam-backend
+node --input-type=module -e 'import { createApp } from "./src/app.js"; createApp({ storage: "memory" }).listen(3000, "127.0.0.1")'
+```
+
+En la segunda terminal, desde la raíz de la rama de interfaz, ejecutar `npm.cmd start` y abrir `http://127.0.0.1:3001/#acceso`. Usar las cuentas locales sembradas que se definen en `src/store.js` del backend. Este entorno utiliza datos de demostración y pierde los cambios al reiniciar el backend. El cálculo y almacenamiento de Nibaldo todavía requieren integración. Ver [resultados y evidencia](docs/PRUEBAS_MANUALES_CESAR.md#verificación-automatizada-en-navegador--22-de-noviembre-de-2026).

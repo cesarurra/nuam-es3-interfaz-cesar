@@ -30,7 +30,7 @@
       <p id="workspace-message" class="connection-status" role="status" aria-live="polite" hidden></p>
       <section id="view-calificaciones" data-panel="calificaciones" aria-labelledby="title-calificaciones">
         <div class="page-heading">
-          <div><p class="eyebrow">TU INFORMACIÓN, BAJO CONTROL</p><h1 id="title-calificaciones">Calificaciones tributarias</h1><p class="muted">Consulta y organiza las calificaciones de tu corredora.</p></div>
+          <div><p class="eyebrow">TU INFORMACIÓN, BAJO CONTROL</p><h1 tabindex="-1" id="title-calificaciones">Calificaciones tributarias</h1><p class="muted">Consulta y organiza las calificaciones de tu corredora.</p></div>
           <a href="#nueva" id="new-qualification" class="button primary">＋ Nueva calificación</a>
         </div>
         <section class="card" aria-labelledby="records-title">
@@ -44,7 +44,7 @@
           </form>
           <p id="records-state" class="connection-status" role="status" aria-live="polite">Inicia sesión para consultar tus calificaciones.</p>
           <button id="retry-records" class="button secondary" type="button" hidden>Reintentar</button>
-          <div id="records-table" class="table-wrap" hidden>
+          <div id="records-table" class="table-wrap" tabindex="0" role="region" aria-labelledby="records-title" hidden>
             <table><caption class="sr-only">Calificaciones devueltas por el servidor para el usuario autenticado</caption>
               <thead><tr><th scope="col">Instrumento / secuencia</th><th scope="col">Ejercicio</th><th scope="col">Mercado</th><th scope="col">Origen / fuente</th><th scope="col">Suma 8–16</th><th scope="col">Modificación</th><th scope="col">Acciones</th></tr></thead>
               <tbody id="records-body"></tbody>
@@ -55,7 +55,7 @@
       </section>
 
       <section id="view-nueva" data-panel="nueva" aria-labelledby="title-nueva" hidden>
-        <p class="eyebrow">INGRESO DE INFORMACIÓN</p><h1 id="title-nueva">Nueva calificación</h1>
+        <p class="eyebrow">INGRESO DE INFORMACIÓN</p><h1 tabindex="-1" id="title-nueva">Nueva calificación</h1>
         <form id="qualification-form">
           <section class="card form-section">
             <h2>1. Identificación del registro</h2>
@@ -69,10 +69,10 @@
             </div>
           </section>
           <section class="card form-section">
-            <div class="factor-heading"><h2>2. Montos y factores</h2><div class="factor-actions"><button id="fill-example" class="button secondary" type="button">Usar montos HDU</button><button id="calculate-factors" class="button primary" type="button">Calcular factores</button></div></div>
+            <div class="factor-heading"><h2 id="factors-title">2. Montos y factores</h2><div class="factor-actions"><button id="fill-example" class="button secondary" type="button">Usar montos HDU</button><button id="calculate-factors" class="button primary" type="button">Calcular factores</button></div></div>
             <p class="muted form-help">Sin separadores de miles, hasta ocho decimales. Puedes usar coma o punto decimal.</p>
             <p class="connection-status">Factores 8–33: monto ÷ total de montos 8–19. Factores 34–37: ingreso manual, sin fórmula definida en el HDU.</p>
-            <div class="table-wrap factor-table-wrap"><table>
+            <div class="table-wrap factor-table-wrap" tabindex="0" role="region" aria-labelledby="factors-title"><table>
               <caption class="sr-only">Treinta columnas de montos y factores, del 8 al 37</caption>
               <thead><tr><th scope="col">Columna</th><th scope="col">Monto</th><th scope="col">Factor</th><th scope="col">Tratamiento</th></tr></thead>
               <tbody id="factor-inputs"></tbody>
@@ -88,7 +88,7 @@
       </section>
 
       <section id="view-acceso" data-panel="acceso" aria-labelledby="title-acceso" hidden>
-        <p class="eyebrow">ACCESO AL MANTENEDOR</p><h1 id="title-acceso">Iniciar sesión</h1>
+        <p class="eyebrow">ACCESO AL MANTENEDOR</p><h1 tabindex="-1" id="title-acceso">Iniciar sesión</h1>
         <section class="card login-card">
           <h2>Tu cuenta de corredor</h2>
           <p class="muted">Ingresa con las credenciales de tu cuenta.</p>

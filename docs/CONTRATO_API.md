@@ -41,3 +41,9 @@ En etapa 4 se calcula y revisa el borrador; no se implementa todavía persistenc
 Escrituras con cookie HttpOnly y X-CSRF-Token. El cliente no decide tenantId/origin, ni reemplaza el control de acceso del servidor. 400 indica validación, 401 sin sesión, 403 sin permiso y 409 llave duplicada o conflicto de versión. Los errores conservan el borrador. No hay reintento automático de escrituras: si la respuesta es incompleta, revisar el listado antes de repetir.
 
 La UI ofrece editar/eliminar solo datos propios. «Usar referencia» carga Bolsa como borrador nuevo; nunca hace PUT a la referencia. La auditoría transaccional es responsabilidad del backend y debe probarse al integrar el módulo del equipo.
+
+## Compatibilidad observada con Ignacio
+
+En `ignacio/backend` (`3f9a488`), GET /api/records devuelve solo registros del corredor autenticado y referencias Bolsa. Los resúmenes omiten `tenantId` y `version`, y distinguen `origin: "Corredor"` de `origin: "Bolsa"`. Si faltan esos campos, la UI usa el origen para ofrecer las acciones y GET /api/records/:id para comprobar titularidad y versión antes de editar o de confirmar el borrado. El backend verifica acceso y versión al escribir.
+
+El recorrido se verificó con el almacén en memoria de esa rama. El cálculo y almacén de `nibaldo/datos` todavía no se invocan desde la API.

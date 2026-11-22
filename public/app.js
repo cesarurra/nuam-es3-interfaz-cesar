@@ -5,7 +5,7 @@ const screens = {
   acceso: 'Acceso',
 };
 
-function renderNavigation() {
+function renderNavigation({ moveFocus = false } = {}) {
   const requested = window.location.hash.slice(1);
   const current = Object.hasOwn(screens, requested) ? requested : 'calificaciones';
 
@@ -19,9 +19,14 @@ function renderNavigation() {
 
   document.getElementById('breadcrumb').textContent = screens[current];
   document.title = `${screens[current]} · Nuam`;
+  if (moveFocus) document.querySelector(`[data-panel="${current}"] h1`).focus();
 }
 
-window.addEventListener('hashchange', renderNavigation);
+window.addEventListener('hashchange', () => renderNavigation({ moveFocus: true }));
+document.querySelector('.skip-link').addEventListener('click', event => {
+  event.preventDefault();
+  document.getElementById('main-content').focus();
+});
 renderNavigation();
 
 const api = NuamAPI.createClient();
@@ -112,15 +117,18 @@ function renderRecords(state) {
       row.append(cell);
     }
     const actions = document.createElement('td');
-    const edit = document.createElement('button');
-    edit.type = 'button'; edit.className = 'button secondary table-action';
-    edit.textContent = NuamOperations.canEdit(activeUser, item) ? 'Editar' : 'Usar referencia';
-    edit.addEventListener('click', () => openRecord(item.id));
-    if (activeUser?.role === 'broker') actions.append(edit);
-    if (NuamOperations.canEdit(activeUser, item)) {
+    const action = NuamOperations.listAction(activeUser, item);
+    if (action) {
+      const edit = document.createElement('button');
+      edit.type = 'button'; edit.className = 'button secondary table-action';
+      edit.textContent = action === 'edit' ? 'Editar' : 'Usar referencia';
+      edit.addEventListener('click', () => openRecord(item.id));
+      actions.append(edit);
+    }
+    if (action === 'edit') {
       const remove = document.createElement('button');
       remove.type = 'button'; remove.className = 'button secondary table-action'; remove.textContent = 'Eliminar';
-      remove.addEventListener('click', () => requestDelete(item)); actions.append(remove);
+      remove.addEventListener('click', () => requestDelete(item, remove)); actions.append(remove);
     }
     row.append(actions);
     body.append(row);
@@ -199,7 +207,6 @@ async function openRecord(id) {
     document.getElementById('title-nueva').textContent = editingRecord ? 'Editar calificación' : 'Crear versión local de Bolsa';
     document.getElementById('save-qualification').textContent = editingRecord ? 'Guardar cambios' : 'Guardar versión local';
     window.location.hash = 'nueva';
-    document.getElementById('qualification-instrument').focus();
   } catch (error) { announce(error.message); }
 }
 
@@ -228,12 +235,23 @@ async function saveQualification() {
   }
 }
 
-function requestDelete(record) {
-  if (writeBusy) return;
-  pendingDelete = record;
-  document.getElementById('delete-description').textContent = `Se eliminará ${record.instrument}, ejercicio ${record.year}, secuencia ${record.sequence}.`;
-  document.getElementById('delete-message').hidden = true;
-  document.getElementById('delete-dialog').showModal();
+async function requestDelete(item, trigger) {
+  const dialog = document.getElementById('delete-dialog');
+  if (writeBusy || dialog.open) return;
+  const user = activeUser;
+  try {
+    const record = NuamOperations.canEdit(user, item) && Number.isSafeInteger(item.version) && item.version >= 1
+      ? item
+      : await operations.get(item.id);
+    if (user !== activeUser || writeBusy || dialog.open || !trigger.isConnected || !trigger.checkVisibility()) return;
+    if (!NuamOperations.canEdit(user, record)) throw new Error('Solo puedes eliminar registros de tu corredora.');
+    pendingDelete = record;
+    document.getElementById('delete-description').textContent = `Se eliminará ${record.instrument}, ejercicio ${record.year}, secuencia ${record.sequence}.`;
+    document.getElementById('delete-message').hidden = true;
+    dialog.showModal();
+  } catch (error) {
+    if (user === activeUser) announce(error.message);
+  }
 }
 
 document.getElementById('cancel-delete').addEventListener('click', () => {
