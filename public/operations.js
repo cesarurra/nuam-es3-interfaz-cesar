@@ -8,6 +8,14 @@
   function canEdit(user, record) {
     return Boolean(user?.role === 'broker' && user.tenantId && record?.tenantId === user.tenantId);
   }
+  function listAction(user, record) {
+    if (user?.role !== 'broker') return null;
+    if (canEdit(user, record)) return 'edit';
+    if (record.tenantId === 'BOLSA' || (record.tenantId == null && record.origin === 'Bolsa')) return 'reference';
+    // La API de Ignacio lista únicamente registros propios y referencias.
+    if (record.tenantId == null && record.origin === 'Corredor') return 'edit';
+    return null;
+  }
   function confirmedRecord(data) {
     if (!data || typeof data.id !== 'string' || !Number.isSafeInteger(data.version) || data.version < 1) {
       throw new Error('El servidor no entregó una confirmación válida. Revisa el listado antes de reintentar.');
@@ -47,7 +55,7 @@
       },
     };
   }
-  const exported = { recordPath, canEdit, confirmedRecord, createOperations };
+  const exported = { recordPath, canEdit, listAction, confirmedRecord, createOperations };
   if (typeof module !== 'undefined' && module.exports) module.exports = exported;
   else root.NuamOperations = exported;
 })(globalThis);
