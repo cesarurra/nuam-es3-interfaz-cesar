@@ -1,4 +1,4 @@
-﻿import http from "node:http";
+import http from "node:http";
 import crypto from "node:crypto";
 import {
   createSessionStore,
@@ -6,6 +6,7 @@ import {
   verifyPassword
 } from "./auth.js";
 import { createMemoryStore } from "./store.js";
+import { calculate, key } from "./domain.js";
 
 const COOKIE_NAME = "nuam_sid";
 const SCALE = 100000000n;
@@ -100,45 +101,17 @@ function formatUnits(units) {
   return `${negative ? "-" : ""}${intPart}.${fracPart}`;
 }
 
-function divideAndRound8(numeratorUnits, denominatorUnits) {
-  const scaled = numeratorUnits * SCALE;
-  const quotient = scaled / denominatorUnits;
-  const remainder = scaled % denominatorUnits;
-  if (remainder * 2n >= denominatorUnits) {
-    return quotient + 1n;
-  }
-  return quotient;
-}
-
 function calculateFactorsFromAmounts(rawAmounts) {
   if (!rawAmounts || typeof rawAmounts !== "object" || Array.isArray(rawAmounts)) {
     throw new Error("Debes enviar un objeto amounts válido.");
   }
-
-  const amountUnits = {};
+  const amounts = {};
   for (const col of COLUMNS) {
-    amountUnits[col] = parseDecimalToUnits(rawAmounts[col] ?? "0", `Monto ${col}`);
+    amounts[col] = formatUnits(parseDecimalToUnits(rawAmounts[col] ?? "0", `Monto ${col}`));
   }
-
-  let totalUnits = 0n;
-  for (let col = 8; col <= 19; col++) {
-    totalUnits += amountUnits[col];
-  }
-
-  if (totalUnits <= 0n) {
-    throw new Error("La suma de los montos 8–19 debe ser mayor que cero.");
-  }
-
-  const factors = {};
-  for (let col = 8; col <= 33; col++) {
-    factors[col] = formatUnits(divideAndRound8(amountUnits[col], totalUnits));
-  }
-
-  return {
-    total: formatUnits(totalUnits),
-    factors,
-    warnings: []
-  };
+  const { total, factors, warnings } = calculate(amounts);
+  const calculated = Object.fromEntries(COLUMNS.slice(0, 26).map(col => [col, factors[col]]));
+  return { total, factors: calculated, warnings };
 }
 
 function validateRecordPayload(body) {
@@ -352,10 +325,6 @@ function parseCsvRows(csvText) {
   });
 }
 
-function recordKey(item) {
-  return `${item.tenantId}::${item.instrument}::${item.year}::${item.market}::${item.sequence}`;
-}
-
 function computeSum8To16(record) {
   let sumUnits = 0n;
   for (let col = 8; col <= 16; col++) {
@@ -379,9 +348,9 @@ function toListItem(record) {
 }
 
 export function createApp({
-  storage = "firestore",
   setupRequired = false,
-  store = createMemoryStore()
+  store = createMemoryStore(),
+  storage = store.kind
 } = {}) {
   const sessions = createSessionStore();
 
@@ -389,7 +358,7 @@ export function createApp({
     await store.appendAudit(entry);
   }
 
-  return http.createServer(async (req, res) => {
+  async function handleRequest(req, res) {
     const url = new URL(req.url || "/", "http://127.0.0.1:3000");
     const pathname = url.pathname;
     const method = req.method || "GET";
@@ -519,7 +488,7 @@ export function createApp({
 
       for (const item of parsedRows) {
         const duplicate = existingRecords.some(
-          (existing) => recordKey(existing) === recordKey({ ...item.payload, tenantId })
+          (existing) => key(existing) === key({ ...item.payload, tenantId })
         );
         if (duplicate) {
           errors.push({
@@ -635,7 +604,7 @@ export function createApp({
         const tenantId = session.user.tenantId;
         const existingRecords = await store.listRecords();
         const duplicate = existingRecords.some(
-          (existing) => recordKey(existing) === recordKey({ ...validated, tenantId })
+          (existing) => key(existing) === key({ ...validated, tenantId })
         );
         if (duplicate) {
           await logAudit({
@@ -747,7 +716,7 @@ export function createApp({
           const duplicate = existingRecords.some(
             (existing) =>
               existing.id !== record.id &&
-              recordKey(existing) === recordKey({ ...validated, tenantId: record.tenantId })
+              key(existing) === key({ ...validated, tenantId: record.tenantId })
           );
           if (duplicate) {
             await logAudit({
@@ -814,5 +783,12 @@ export function createApp({
     }
 
     return sendJson(res, 404, { error: "Ruta no encontrada." });
+  }
+  return http.createServer((req, res) => {
+    handleRequest(req, res).catch(error => {
+      console.error(error);
+      if (res.headersSent) res.destroy();
+      else sendJson(res, 500, { error: "No se pudo completar la operación." });
+    });
   });
 }

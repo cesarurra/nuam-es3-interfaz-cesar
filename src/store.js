@@ -1,5 +1,8 @@
 ﻿import crypto from "node:crypto";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { hashPassword } from "./auth.js";
+import { createStore } from "./nibaldo-store.cjs";
 
 const COLUMNS = Array.from({ length: 30 }, (_, i) => i + 8);
 
@@ -117,33 +120,55 @@ function buildSeedData() {
   return { users, records };
 }
 
-export function createMemoryStore() {
+export function createMemoryStore({ file } = {}) {
   const { users, records } = buildSeedData();
-  const auditEvents = [];
+  let snapshot = { records: Object.fromEntries(records), audit: [] };
+  if (file) {
+    mkdirSync(dirname(file), { recursive: true });
+    try {
+      snapshot = JSON.parse(readFileSync(file, "utf8"));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    if (!snapshot?.records || Array.isArray(snapshot.records) || typeof snapshot.records !== "object" || !Array.isArray(snapshot.audit)) {
+      throw new Error("El almacén local tiene un formato inválido.");
+    }
+  }
+  const store = createStore({ ...snapshot, users: Object.fromEntries(users) }, {
+    persist: file ? state => {
+      const temporary = `${file}.${crypto.randomUUID()}.tmp`;
+      try {
+        writeFileSync(temporary, JSON.stringify(state), { encoding: "utf8", flag: "wx" });
+        renameSync(temporary, file);
+      } finally {
+        rmSync(temporary, { force: true });
+      }
+    } : undefined
+  });
 
   return {
-    kind: "memory",
+    kind: file ? "json-local" : "memory",
     async findUserByEmail(email) {
-      return users.get(email) || null;
+      return store.read(state => state.users.find(user => user.email === email) || null);
     },
     async listRecords() {
-      return [...records.values()];
+      return store.read(state => state.records);
     },
     async getRecordById(id) {
-      return records.get(id) || null;
+      return store.read(state => state.records.find(record => record.id === id) || null);
     },
     async createRecord(record) {
       const id = record.id || `rec-${crypto.randomUUID()}`;
       const saved = { ...record, id };
-      records.set(id, saved);
+      store.transaction(state => state.records.set(id, saved));
       return saved;
     },
     async updateRecord(record) {
-      records.set(record.id, { ...record });
+      store.transaction(state => state.records.set(record.id, { ...record }));
       return record;
     },
     async deleteRecord(id) {
-      records.delete(id);
+      store.transaction(state => state.records.delete(id));
     },
     async appendAudit(event) {
       const entry = {
@@ -151,11 +176,11 @@ export function createMemoryStore() {
         timestamp: event.timestamp || new Date().toISOString(),
         ...event
       };
-      auditEvents.push(entry);
+      store.transaction(state => state.audit.push(entry));
       return entry;
     },
     async listAudit() {
-      return [...auditEvents];
+      return store.read(state => state.audit);
     }
   };
 }

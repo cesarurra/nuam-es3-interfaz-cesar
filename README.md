@@ -1,6 +1,6 @@
-# Nuam ES3 · Módulo de interfaz de César
+# Nuam ES3 · Mantenedor de calificaciones tributarias
 
-Reconstrucción del módulo de interfaz del caso Nuam, Proyecto Integrado TIHI43, Grupo 2.
+Integración de la interfaz, la API y el módulo de cálculo y datos del caso Nuam, Proyecto Integrado TIHI43, Grupo 2.
 
 ## Alcance y trabajo del equipo
 
@@ -14,17 +14,27 @@ Este repositorio nace después de que el docente solicitara reconstruir los mód
 
 Incluye disposición visual, navegación, acceso y cliente de API, listado/filtros y formulario de montos/factores 8–37 con cálculo recibido del servidor. Permite crear, editar y eliminar mediante API, conservar el borrador ante validaciones/conflictos y crear una versión local desde referencia Bolsa. Autenticación, consulta, cálculo, persistencia y auditoría requieren backend; no se simulan sesiones ni guardados en la aplicación. Se incluye un botón para cargar montos de ejemplo del HDU, identificado como tal.
 
-`server.js` sirve la interfaz y reenvía `/api/*` al backend local en puerto 3000. No reconstruye las operaciones del backend. Ver `docs/CONTRATO_API.md`; sin backend el formulario muestra un error de disponibilidad.
+`server.js` sirve la interfaz y reenvía `/api/*` a la API local de Ignacio. La API invoca el cálculo decimal y el almacenamiento de Nibaldo a través de un adaptador. El modo de demostración guarda calificaciones y eventos en un archivo JSON local.
 
 ## Ejecutar
 
-Requisito: Node.js 22 o posterior. Sin dependencias externas.
+Requisito: Node.js 22 o posterior. Sin dependencias externas. Abrir dos terminales en la raíz de la rama de integración.
+
+En la primera, iniciar la API:
+
+```powershell
+npm.cmd run start:api
+```
+
+En la segunda, iniciar la interfaz:
 
 ```powershell
 npm.cmd start
 ```
 
-Abrir http://127.0.0.1:3001. Se usa 3001 para no confundirlo con el prototipo anterior en 3000. Ctrl+C detiene el servidor.
+Abrir `http://127.0.0.1:3001/#acceso`. La API escucha en 3000 y la interfaz en 3001. Las cuentas locales de demostración se encuentran en `buildSeedData` de [src/store.js](src/store.js). Ctrl+C detiene cada servidor. Si se reinicia la API, recargar la página e iniciar sesión de nuevo.
+
+Los datos quedan en `data/nuam-demo.json`, excluido de Git. Para aislar pruebas, establecer `NUAM_DATA_FILE` antes de iniciar la API. Usar una sola instancia de la API por archivo. Para cambiar el puerto, definir `API_PORT` en la terminal de la API y el `API_ORIGIN` correspondiente en la terminal de la interfaz.
 
 ```powershell
 npm.cmd run check
@@ -36,7 +46,7 @@ La comprobación revisa sintaxis JavaScript. No acredita pruebas de navegador ni
 npm.cmd test
 ```
 
-Ejecuta pruebas del cliente con respuestas simuladas: validación, errores, sesión/CSRF, listado, formulario y operaciones CRUD. No acreditan el flujo completo en navegador. Ver docs/PRUEBAS_MANUALES_CESAR.md para evidencias recibidas y casos pendientes.
+Ejecuta las pruebas del cliente y la API, incluida la recarga del archivo local. El recorrido de Chrome se documenta en [el registro de verificación](docs/PRUEBAS_MANUALES_CESAR.md).
 
 ## Historial de desarrollo
 
@@ -59,19 +69,13 @@ Ver `docs/AVANCES.md`. No hay contraseñas, base de datos ni credenciales en est
 ## Qué falta para la entrega
 
 - El recorrido CRUD básico de etapa 5 fue ejecutado por César contra el backend del prototipo anterior; alta tiene captura y edición/validación/eliminación tienen confirmaciones textuales. Completar las capturas y verificaciones detalladas en docs/PRUEBAS_MANUALES_CESAR.md.
-- Repetir el recorrido con el cálculo de Nibaldo conectado a la API y el motor de datos acordado. Verificar persistencia tras reinicio, auditoría transaccional y aislamiento entre usuarios en ese entorno.
-- Completar la revisión de accesibilidad y las pruebas de CSV según el alcance acordado con el docente.
-- Confirmar invitación aceptada por el docente, condiciones de uso de IA, motor de datos y repositorio de integración. Esta interfaz no incluye base de datos ni importación CSV/auditoría, que corresponden a los módulos del equipo.
+- Confirmar con el equipo el motor que se presentará. El modo local usa JSON y mantiene los datos tras reiniciar. El adaptador Firestore requiere configuración y verificación aparte.
+- Completar la revisión de accesibilidad y confirmar con el docente si CSV y log entran en la demostración. La API expone ambos, y el flujo de navegador verificado cubre operaciones manuales, con auditoría consultada por API.
+- Confirmar que el docente tiene acceso a GitHub y revisar en equipo la evidencia y las contribuciones antes de entregar.
 
-## Verificación con el backend reconstruido de Ignacio
+## Aportes e integración
 
-El 22 de noviembre se verificó en Chrome el acceso, cálculo y CRUD contra `ignacio/backend` en modo memoria. Para reproducir el entorno en dos terminales, desde la raíz del repositorio:
-
-```powershell
-git fetch origin
-git worktree add --detach ../nuam-backend 3f9a488
-Set-Location ../nuam-backend
-node --input-type=module -e 'import { createApp } from "./src/app.js"; createApp({ storage: "memory" }).listen(3000, "127.0.0.1")'
-```
-
-En la segunda terminal, desde la raíz de la rama de interfaz, ejecutar `npm.cmd start` y abrir `http://127.0.0.1:3001/#acceso`. Usar las cuentas locales sembradas que se definen en `src/store.js` del backend. Este entorno utiliza datos de demostración y pierde los cambios al reiniciar el backend. El cálculo y almacenamiento de Nibaldo todavía requieren integración. Ver [resultados y evidencia](docs/PRUEBAS_MANUALES_CESAR.md#verificación-automatizada-en-navegador--22-de-noviembre-de-2026).
+- César: interfaz, navegación, consumo de la API y pruebas guiadas de interfaz. [Historial de la interfaz](https://github.com/cesarurra/nuam-es3-interfaz-cesar/commits/1ef3418).
+- Ignacio: servidor, autenticación, permisos, operaciones, CSV, auditoría y adaptador Firestore. [Rama de Ignacio](https://github.com/cesarurra/nuam-es3-interfaz-cesar/commits/ignacio/backend/).
+- Nibaldo: dominio, reglas tributarias, cálculo decimal y almacén transaccional en memoria. [Rama de Nibaldo](https://github.com/cesarurra/nuam-es3-interfaz-cesar/commits/nibaldo/datos/).
+- Codex: correcciones de interfaz, adaptación de los módulos y persistencia local de demostración, además de las pruebas automatizadas documentadas. Los historiales originales se conservan en la rama de integración.

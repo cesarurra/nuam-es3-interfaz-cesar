@@ -81,3 +81,17 @@ Antes de las correcciones, Chrome reprodujo el cambio de pantalla al accionar «
 - En la interfaz se ejecutaron `npm run check` y `npm test`: sintaxis correcta, 31 pruebas aprobadas. En la rama de Ignacio se ejecutó `node --test tests/*.test.mjs`: 5 aprobadas.
 - En `nibaldo/datos` (`abab267`) se verificaron aisladamente el total HDU, F8, F34 manual, suma exacta, rechazo de total cero y almacenamiento en memoria por instancia. La API de Ignacio calcula con su propia función y usa un contrato de almacenamiento diferente. Quedan pendientes conectar el cálculo y la capa de datos de Nibaldo, configurar el motor acordado y verificar persistencia tras reinicio, auditoría transaccional y el alcance de CSV.
 - Correcciones, automatización y documentación elaboradas con asistencia de Codex. El recorrido de esta sección fue automatizado y se registra aparte de las acciones anteriores ejecutadas por César.
+
+## Verificación de los tres módulos · 22 de noviembre de 2026
+
+Codex ejecutó las pruebas en Windows con Node.js 24.18.0 y Chrome 157 automatizado con Playwright. Rama `codex/integracion-nuam`, con la interfaz corregida, los commits de Ignacio y Nibaldo, y el adaptador local. Se usó un archivo JSON nuevo de demostración, aislado y descartado al finalizar.
+
+| Caso | Esperado | Resultado observado |
+| --- | --- | --- |
+| Acceso, filtros y separación de corredores | Rechazar clave incorrecta, entrar con clave válida y excluir registros de otro corredor | Chrome recibió HTTP 401 y 200. El listado mostró los registros propios y la referencia de Bolsa. La prueba de API verificó los roles y el aislamiento A/B |
+| Cálculo HDU y borde | Total 368745318.00000000, F8 0.52277431, suma exacta 1.00000000 | Coincidieron. La prueba de API de seis montos iguales obtuvo 0.16666667 por factor y la advertencia de suma 1.00000002 del dominio de Nibaldo |
+| Alta, edición y errores | Guardar calificación no inscrita y factor manual. Rechazar versión anterior y suma mayor que 1 | Alta 201, edición 200 y conflicto 409 entre dos pestañas. El dato ingresado se conservó en el borrador ante conflicto y error de suma |
+| Reinicio real de la API | Volver a iniciar sesión y abrir el mismo registro con los valores guardados | Tras detener e iniciar un nuevo proceso, el registro conservó «No inscrito», F34 0.25000000 y F10 0.00000000. La sesión previa expiró con HTTP 401. [Captura al reabrir tras reinicio](evidencias/registro-tras-reinicio.png) |
+| Eliminación y auditoría | Escape cancela, confirmar elimina, y el historial reúne eventos anteriores y posteriores al reinicio | Escape conservó el registro. La eliminación respondió 200. La consulta al log devolvió LOGIN, RECORD_CREATE, RECORD_UPDATE y RECORD_DELETE |
+
+Se ejecutaron `npm run check` y `npm test`: **37 pruebas aprobadas, 0 fallos**. Se repitieron las comprobaciones de teclado y de ancho del formulario de la sección anterior. Se verificó persistencia ante reinicio del proceso, con datos de ejemplo. Quedan fuera de esta ejecución Firestore, estrés y la garantía de auditoría atómica junto a cada escritura. La ejecución se registra como automatizada por Codex.

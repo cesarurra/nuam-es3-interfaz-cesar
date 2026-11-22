@@ -89,4 +89,18 @@ test("POST /api/calculate exige CSRF y calcula total y factores en decimales de 
   assert.equal(data.total, "368745318.00000000");
   assert.equal(data.factors["8"], "0.52277431");
   assert.equal(Object.hasOwn(data.factors, "34"), false);
+
+  const rounding = await fetch(`${baseUrl}/api/calculate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: cookieA,
+      "X-CSRF-Token": csrf
+    },
+    body: JSON.stringify({ amounts: { 8: "1", 9: "1", 10: "1", 11: "1", 12: "1", 13: "1" } })
+  });
+  assert.equal(rounding.status, 200);
+  const rounded = await rounding.json();
+  assert.equal(rounded.factors["8"], "0.16666667");
+  assert.match(rounded.warnings[0], /1\.00000002/);
 });

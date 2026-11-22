@@ -46,4 +46,4 @@ La UI ofrece editar/eliminar solo datos propios. «Usar referencia» carga Bolsa
 
 En `ignacio/backend` (`3f9a488`), GET /api/records devuelve solo registros del corredor autenticado y referencias Bolsa. Los resúmenes omiten `tenantId` y `version`, y distinguen `origin: "Corredor"` de `origin: "Bolsa"`. Si faltan esos campos, la UI usa el origen para ofrecer las acciones y GET /api/records/:id para comprobar titularidad y versión antes de editar o de confirmar el borrado. El backend verifica acceso y versión al escribir.
 
-El recorrido se verificó con el almacén en memoria de esa rama. El cálculo y almacén de `nibaldo/datos` todavía no se invocan desde la API.
+El primer recorrido se verificó con el almacén en memoria de esa rama. En la rama de integración, la API usa el cálculo y la llave de negocio del dominio de Nibaldo, y adapta su almacén a las operaciones de Ignacio. El modo de demostración usa un archivo JSON y responde `storage: "json-local"` en GET /api/status. La persistencia de cada operación del almacén ocurre antes de confirmar su estado en memoria. La mutación del registro y el evento de auditoría siguen siendo llamadas separadas.

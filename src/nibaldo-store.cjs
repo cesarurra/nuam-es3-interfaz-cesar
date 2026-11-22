@@ -4,12 +4,10 @@
  * Etapa N4: Capa de persistencia, aislamiento multi-tenant y transacciones.
  */
 
-const { key } = require('./domain');
-
 /**
  * Crea o inicializa una tienda de datos en memoria / archivo local para pruebas y desarrollo.
  */
-function createStore(initialData = {}) {
+function createStore(initialData = {}, { persist } = {}) {
   const users = new Map(Object.entries(initialData.users || {
     'cesar@demo.local': { id: 'u1', name: 'César Urra', role: 'broker', tenantId: '96855000-1', passwordHash: '...' },
     'corredor.b@demo.local': { id: 'u2', name: 'Corredor B', role: 'broker', tenantId: '99999999-9', passwordHash: '...' },
@@ -17,7 +15,7 @@ function createStore(initialData = {}) {
   }));
 
   const records = new Map(Object.entries(initialData.records || {}));
-  const auditLogs = [];
+  const auditLogs = [...(initialData.audit || [])];
 
   return {
     kind: 'memory-store',
@@ -40,6 +38,7 @@ function createStore(initialData = {}) {
 
       try {
         const result = mutatorFn(draftState);
+        persist?.({ records: Object.fromEntries(draftState.records), audit: draftState.audit });
         
         // Si todo sale bien, aplicamos los cambios al estado oficial
         records.clear();
