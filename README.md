@@ -15,7 +15,7 @@ La interfaz requiere un backend compatible para autenticación, cálculo y opera
 
 - **Sistema operativo:** Windows, macOS o Linux compatible con Node.js.
 - **Lenguaje y versión:** Node.js 22 o posterior.
-- **Base de datos:** No se requiere para ejecutar la interfaz. El módulo `src/store.js` es una tienda en memoria de desarrollo, no está conectado a una API y no conserva datos al reiniciar.
+- **Base de datos:** No se requiere para servir la interfaz. Este repositorio no incluye el backend ni almacenamiento de datos; las operaciones reales requieren un backend compatible.
 - **Otras herramientas:** Git y un navegador moderno. Para el flujo completo se necesita además un backend local compatible con el contrato descrito en [`docs/CONTRATO_API.md`](./docs/CONTRATO_API.md).
 
 ## Instalación paso a paso
@@ -81,7 +81,6 @@ npm run check
 
 - `public/`: interfaz web, estilos y clientes de API.
 - `server.js`: servidor local de archivos y proxy de desarrollo para `/api/*`.
-- `src/`: reglas de dominio y almacenamiento en memoria para desarrollo.
 - `tests/`: pruebas automatizadas de los clientes de la interfaz.
 - `docs/`: contrato propuesto de API, bitácora y evidencias/pendientes de pruebas manuales.
 
@@ -100,4 +99,4 @@ npm run check
 
 ## Equipo
 
-Reparto de trabajo declarado: César Andrés Urra Zambrano, interfaz; Nibaldo Zepeda, reglas de cálculo y almacenamiento de desarrollo; Ignacio Rivera, API y funcionalidades de backend asignadas. Consulta el [historial de commits de la rama](https://github.com/cesarurra/nuam-es3-interfaz-cesar/commits/nibaldo/datos/) para ver los avances registrados.
+Reparto de trabajo declarado: César Andrés Urra Zambrano, interfaz; Nibaldo Zepeda, reglas de cálculo y almacenamiento de desarrollo (en la rama `nibaldo/datos`); Ignacio Rivera, API y funcionalidades de backend asignadas. Esta rama `main` contiene la interfaz y sus clientes de API, no la implementación del backend. Consulta el [historial de commits de `main`](https://github.com/cesarurra/nuam-es3-interfaz-cesar/commits/main/) y el [historial de `nibaldo/datos`](https://github.com/cesarurra/nuam-es3-interfaz-cesar/commits/nibaldo/datos/).
