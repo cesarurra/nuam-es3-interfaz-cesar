@@ -1,65 +1,103 @@
-# Nuam ES3 · Módulo de interfaz de César
+# Mantenedor de Calificaciones Tributarias para corredores de Nuam
 
-Reconstrucción del módulo de interfaz del caso Nuam, Proyecto Integrado TIHI43, Grupo 2.
+Proyecto Integrado (TIHI43), ES3.
 
-## Alcance y trabajo del equipo
+- **Grupo:** 2
+- **Integrantes:** César Andrés Urra Zambrano, Nibaldo Zepeda, Ignacio Rivera
 
-- César: interfaz web y su integración con el servidor.
-- Nibaldo: modelo de datos, persistencia y reglas de cálculo.
-- Ignacio: API, sesiones, permisos, CRUD, CSV y auditoría.
+## Qué hace
 
-Este repositorio nace después de que el docente solicitara reconstruir los módulos con evidencia de desarrollo. No reescribe el historial del proyecto inicial ni presenta el ZIP anterior como desarrollo individual. El desarrollo de este repositorio usa asistencia de ChatGPT/Codex; César debe revisar, probar y comprender cada avance. Confirmar con el docente las condiciones de uso de IA para ES3.
+La aplicación permite a corredores consultar y filtrar calificaciones tributarias, ingresar montos y factores, solicitar su cálculo y gestionar registros.
+El flujo contempla iniciar sesión, revisar el listado, completar o editar una calificación y guardarla mediante la API del equipo.
+La interfaz requiere un backend compatible para autenticación, cálculo y operaciones de datos; este repositorio no incluye una API ejecutable integrada.
 
-## Etapas implementadas: 1 a 5
+## Requisitos
 
-Incluye disposición visual, navegación, acceso y cliente de API, listado/filtros y formulario de montos/factores 8–37 con cálculo recibido del servidor. Permite crear, editar y eliminar mediante API, conservar el borrador ante validaciones/conflictos y crear una versión local desde referencia Bolsa. Autenticación, consulta, cálculo, persistencia y auditoría requieren backend; no se simulan sesiones ni guardados en la aplicación. Se incluye un botón para cargar montos de ejemplo del HDU, identificado como tal.
+- **Sistema operativo:** Windows, macOS o Linux compatible con Node.js.
+- **Lenguaje y versión:** Node.js 22 o posterior.
+- **Base de datos:** No se requiere para ejecutar la interfaz. El módulo `src/store.js` es una tienda en memoria de desarrollo, no está conectado a una API y no conserva datos al reiniciar.
+- **Otras herramientas:** Git y un navegador moderno. Para el flujo completo se necesita además un backend local compatible con el contrato descrito en [`docs/CONTRATO_API.md`](./docs/CONTRATO_API.md).
 
-`server.js` sirve la interfaz y reenvía `/api/*` al backend local en puerto 3000. No reconstruye las operaciones del backend. Ver `docs/CONTRATO_API.md`; sin backend el formulario muestra un error de disponibilidad.
+## Instalación paso a paso
 
-## Ejecutar
+1. Clonar el repositorio:
 
-Requisito: Node.js 22 o posterior. Sin dependencias externas.
+   ```sh
+   git clone https://github.com/cesarurra/nuam-es3-interfaz-cesar.git
+   ```
 
-```powershell
-npm.cmd start
+2. Entrar a la carpeta:
+
+   ```sh
+   cd nuam-es3-interfaz-cesar
+   ```
+
+3. Verificar Node.js:
+
+   ```sh
+   node --version
+   ```
+
+   Debe ser la versión 22 o posterior. No es necesario instalar paquetes: el proyecto usa módulos integrados de Node.js.
+
+4. Crear una base de datos: no aplica a esta interfaz. La API y su almacenamiento deben configurarse por separado en el backend.
+
+5. Configurar variables: no se necesita un archivo `.env`. Por defecto, la interfaz usa el puerto `3001` y reenvía las solicitudes `/api/*` a `http://127.0.0.1:3000`. Si el backend usa otro puerto, configura `API_ORIGIN` antes de iniciar la interfaz:
+
+   ```powershell
+   $env:API_ORIGIN = "http://127.0.0.1:PUERTO"
+   ```
+
+   En macOS o Linux:
+
+   ```sh
+   export API_ORIGIN=http://127.0.0.1:PUERTO
+   ```
+
+   Reemplaza `PUERTO` por el puerto local del backend. No guardes contraseñas ni llaves reales en el repositorio.
+
+6. Cargar datos de ejemplo: no hay una base de datos ni un comando de carga en este repositorio. El botón **Usar montos HDU** rellena montos de ejemplo en el formulario; no crea ni guarda registros.
+
+## Cómo ejecutar
+
+Inicia primero el backend compatible y luego, desde la raíz del repositorio, ejecuta:
+
+```sh
+npm start
 ```
 
-Abrir http://127.0.0.1:3001. Se usa 3001 para no confundirlo con el prototipo anterior en 3000. Ctrl+C detiene el servidor.
+Abre [http://127.0.0.1:3001](http://127.0.0.1:3001). Sin backend, la interfaz se sirve, pero las funciones que dependen de la API mostrarán un error de disponibilidad. No hay usuario ni contraseña de demostración incluidos en este repositorio.
 
-```powershell
-npm.cmd run check
+## Cómo ejecutar las pruebas
+
+```sh
+npm test
+npm run check
 ```
 
-La comprobación revisa sintaxis JavaScript. No acredita pruebas de navegador ni de API.
+`npm test` ejecuta pruebas del cliente con respuestas simuladas; no acredita una integración completa con el backend ni pruebas de navegador. `npm run check` revisa la sintaxis de JavaScript. Los resultados y límites de verificación están en [`docs/AVANCES.md`](./docs/AVANCES.md); los resultados manuales y pendientes, en [`docs/PRUEBAS_MANUALES_CESAR.md`](./docs/PRUEBAS_MANUALES_CESAR.md).
 
-```powershell
-npm.cmd test
-```
+## Estructura del repositorio
 
-Ejecuta pruebas del cliente con respuestas simuladas: validación, errores, sesión/CSRF, listado, formulario y operaciones CRUD. No acreditan el flujo completo en navegador. Ver docs/PRUEBAS_MANUALES_CESAR.md para evidencias recibidas y casos pendientes.
+- `public/`: interfaz web, estilos y clientes de API.
+- `server.js`: servidor local de archivos y proxy de desarrollo para `/api/*`.
+- `src/`: reglas de dominio y almacenamiento en memoria para desarrollo.
+- `tests/`: pruebas automatizadas de los clientes de la interfaz.
+- `docs/`: contrato propuesto de API, bitácora y evidencias/pendientes de pruebas manuales.
 
-## Historial de desarrollo
+## Decisiones del caso
 
-1. Estructura y navegación: 4fd574b.
-2. Acceso y cliente de API: d90c510.
-3. Listado/filtros y estados: f3a3f7c.
-4. Identificación, montos y cálculo: 615c67f.
-5. Guardado, edición y eliminación: commit de cierre de esta etapa.
+- **Suma de factores:** se valida sobre las columnas 8–16; el total usado como denominador del cálculo suma los montos de las columnas 8–19.
+- **Filas inválidas en un CSV:** no aplica; la importación CSV no está implementada en este repositorio.
+- **Llave de una calificación:** `tenantId`, ejercicio, mercado, instrumento y secuencia.
+- **Factores 34–37:** se ingresan manualmente y no se calculan con la fórmula de las columnas 8–33.
 
-Cada commit debe describir el avance efectivamente implementado. Cada etapa tendrá sus verificaciones y límites documentados, sin atribuir pruebas aún no realizadas.
+## Problemas frecuentes
 
-## Guía de estilo
+- **“El servidor de autenticación no está disponible”:** inicia el backend compatible en `127.0.0.1:3000` o configura `API_ORIGIN` con su puerto local antes de ejecutar `npm start`.
+- **Error por versión de Node.js:** instala Node.js 22 o posterior y vuelve a ejecutar el comando.
+- **No puedo iniciar sesión o guardar:** este repositorio no incluye credenciales de demostración ni la API integrada; verifica que el backend esté disponible y que implemente el contrato documentado. La integración con los módulos reconstruidos del equipo aún debe verificarse.
 
-Azul #112C3E, verde #B9F068, fondo #F5F7F9, texto #1B3445; tipografía Segoe UI/Arial. Navegación con estado activo, encabezados, tarjetas y foco visible; adaptación CSS a escritorio y pantalla estrecha pendiente de comprobación visual.
+## Equipo
 
-## Evidencia
-
-Ver `docs/AVANCES.md`. No hay contraseñas, base de datos ni credenciales en este repositorio.
-
-## Qué falta para la entrega
-
-- El recorrido CRUD básico de etapa 5 fue ejecutado por César contra el backend del prototipo anterior; alta tiene captura y edición/validación/eliminación tienen confirmaciones textuales. Completar las capturas y verificaciones detalladas en docs/PRUEBAS_MANUALES_CESAR.md.
-- Probar filtros con datos existentes, cambios manuales de factores, conflictos y aislamiento entre usuarios.
-- Probar el contrato contra los módulos reconstruidos de Ignacio y Nibaldo. Las capturas recibidas hasta etapa 4 usaron el backend del prototipo inicial; no acreditan el trabajo reconstruido del equipo.
-- Completar revisión responsive, teclado/foco y documentación de pruebas.
-- Confirmar invitación aceptada por el docente, condiciones de uso de IA, motor de datos y repositorio de integración. Esta interfaz no incluye base de datos ni importación CSV/auditoría, que corresponden a los módulos del equipo.
+Reparto de trabajo declarado: César Andrés Urra Zambrano, interfaz; Nibaldo Zepeda, reglas de cálculo y almacenamiento de desarrollo; Ignacio Rivera, API y funcionalidades de backend asignadas. Consulta el [historial de commits de la rama](https://github.com/cesarurra/nuam-es3-interfaz-cesar/commits/nibaldo/datos/) para ver los avances registrados.
